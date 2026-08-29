@@ -2,7 +2,7 @@
 """Shared libmelee arena runner.
 
 The runner owns Dolphin, the Melee console, controllers, and menu navigation.
-Team bots are separate modules and only implement Bot.act().
+Team bots are separate modules and provide Bot.get_character() and Bot.act().
 """
 
 from __future__ import annotations
@@ -59,9 +59,43 @@ def load_bot(bot_path: Path, port: int):
         raise TypeError(f"{bot_path} must define a class named Bot")
 
     bot = bot_class(port=port)
+    if not callable(getattr(bot, "get_character", None)):
+        raise TypeError(
+            f"Bot in {bot_path} must define "
+            "get_character() -> melee.Character"
+        )
     if not callable(getattr(bot, "act", None)):
         raise TypeError(f"Bot in {bot_path} must define act(gamestate, controller)")
     return bot
+
+
+def is_selectable_character(character: object) -> bool:
+    """Return whether libmelee can navigate to this character on the CSS."""
+    if not isinstance(character, melee.Character):
+        return False
+
+    # Sheik shares Zelda's character-select slot. MenuHelper handles the
+    # transformation separately during stage selection.
+    if character is melee.Character.SHEIK:
+        return True
+
+    css_id = melee.from_internal(character)
+    if css_id == 0xFF:
+        return False
+
+    # Confirm that the character's internal ID maps back to the same enum.
+    return melee.to_internal(css_id) is character
+
+
+def get_bot_character(bot, port: int) -> melee.Character:
+    """Read and validate a bot's fixed character selection."""
+    character = bot.get_character()
+    if not is_selectable_character(character):
+        raise ValueError(
+            f"Bot on port {port} selected {character!r}, "
+            "which is not a selectable character"
+        )
+    return character
 
 
 def main() -> int:
@@ -107,11 +141,16 @@ def main() -> int:
         print(f"ISO not found: {iso_path}", file=sys.stderr)
         return 2
 
-    # Load the team code before starting Dolphin. Each bot gets its own object
-    # and therefore its own persistent state.
+    # Load the team code and character choices before starting Dolphin. Each
+    # bot gets its own object and therefore its own persistent state. Character
+    # choices are fixed for the match and are not queried during gameplay.
     bots = {
         1: load_bot(args.p1, port=1),
         2: load_bot(args.p2, port=2),
+    }
+    characters = {
+        port: get_bot_character(bot, port)
+        for port, bot in bots.items()
     }
 
     console = melee.Console(
@@ -206,7 +245,10 @@ def main() -> int:
                     menu_helper.menu_helper_simple(
                         gamestate=gamestate,
                         controller=controller,
-                        character_selected=melee.Character.FOX,
+                        # Pass the requested character, including SHEIK.
+                        # MenuHelper handles Sheik's Zelda CSS slot and
+                        # transformation itself.
+                        character_selected=characters[port],
                         stage_selected=melee.Stage.YOSHIS_STORY,
                         cpu_level=0,
                         costume=0,

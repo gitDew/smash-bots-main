@@ -11,6 +11,17 @@ class Bot:
         self.next_jump_frame = 120
         self.previous_frame = -1
 
+    def get_character(self) -> melee.Character:
+        # Change this value to switch characters. Valid choices are:
+        # MARIO, FOX, CPTFALCON, DK, KIRBY, BOWSER, LINK, SHEIK,
+        # NESS, PEACH, POPO, PIKACHU, SAMUS, YOSHI, JIGGLYPUFF,
+        # MEWTWO, LUIGI, MARTH, ZELDA, YLINK, DOC, FALCO, PICHU,
+        # GAMEANDWATCH, GANONDORF, and ROY.
+        # Use melee.Character.NAME, for example melee.Character.FALCO.
+        # NANA, wireframe characters, GIGA_BOWSER, SANDBAG, and
+        # UNKNOWN_CHARACTER are not valid independent selections.
+        return melee.Character.FOX
+
     def act(self, gamestate, controller) -> None:
         # Game frames restart when a new match starts.
         if gamestate.frame < self.previous_frame:

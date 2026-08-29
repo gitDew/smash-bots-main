@@ -31,9 +31,25 @@ class Bot:
     def __init__(self, port: int):
         self.port = port
 
+    def get_character(self) -> melee.Character:
+        return melee.Character.FOX
+
     def act(self, gamestate, controller) -> None:
         pass
 ```
+
+`runner.py` calls `get_character()` once before starting the match. It must
+return a selectable `melee.Character` enum value. To switch characters, change
+the returned value in the team's `bot.py`, for example:
+
+```python
+def get_character(self) -> melee.Character:
+    return melee.Character.FALCO
+```
+
+Sheik is supported even though it shares Zelda's character-select slot. `NANA`,
+wireframe characters, Giga Bowser, Sandbag, and `UNKNOWN_CHARACTER` are not
+independently selectable and will be rejected by the runner.
 
 `runner.py` creates one `Bot` object per team and calls `act()` once per
 in-game frame. The bot should read the current game state and send inputs
@@ -42,7 +58,8 @@ through the provided controller. It should only control its own player.
 The runner resets both controllers before each call to `act()`, so the bot
 should set the buttons and stick positions it wants for that frame. It should
 not create a console or controller, call `console.step()`, flush inputs, or
-handle menus.
+handle menus. Character selection is also handled by the runner; bots only
+provide `get_character()`.
 
 ## libmelee
 
