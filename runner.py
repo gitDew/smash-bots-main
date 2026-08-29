@@ -152,6 +152,7 @@ def main() -> int:
         port: get_bot_character(bot, port)
         for port, bot in bots.items()
     }
+    stage = melee.Stage.RANDOM_STAGE
 
     console = melee.Console(
         path=args.dolphin_path,
@@ -188,6 +189,7 @@ def main() -> int:
     try:
         print(f"Player 1 bot: {Path(args.p1).expanduser()}")
         print(f"Player 2 bot: {Path(args.p2).expanduser()}")
+        print(f"Selected stage: {stage.name}")
         print(f"Starting Dolphin with {iso_path}")
         console.run(iso_path=str(iso_path))
 
@@ -249,7 +251,7 @@ def main() -> int:
                         # MenuHelper handles Sheik's Zelda CSS slot and
                         # transformation itself.
                         character_selected=characters[port],
-                        stage_selected=melee.Stage.YOSHIS_STORY,
+                        stage_selected=stage,
                         cpu_level=0,
                         costume=0,
                         autostart=port == 1,
