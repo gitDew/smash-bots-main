@@ -106,7 +106,6 @@
 - [ ] Pull the Team B repository.
 - [ ] Run `runner.py` with the Team A and Team B bot paths.
 - [ ] Add the Dolphin/ISO arguments needed on the master laptop.
-- [ ] Add the runner safety timeout if desired.
 
 ## 9. Test the complete workflow
 

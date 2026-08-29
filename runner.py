@@ -10,9 +10,9 @@ from __future__ import annotations
 import argparse
 import configparser
 import importlib.util
+import math
 import signal
 import sys
-import time
 from pathlib import Path
 import melee
 
@@ -21,6 +21,50 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_ISO = PROJECT_ROOT / "smash_bros_melee.iso"
 DEFAULT_P1_BOT = PROJECT_ROOT / "teams" / "team_a" / "bot.py"
 DEFAULT_P2_BOT = PROJECT_ROOT / "teams" / "team_b" / "bot.py"
+
+# Melee's game timer runs at 60 frames per second.  libmelee does not expose
+# the HUD timer on GameState, but GameState.frame is the in-game frame index.
+# Frame 0 is the start of timed gameplay; negative frames are the countdown.
+GAME_FPS = 60
+DEFAULT_GAME_CLOCK_SECONDS = 8 * 60
+DEFAULT_TIME_LIMIT_SECONDS = 3 * 60
+
+
+def time_left_seconds(
+    game_frame: int,
+    game_clock_seconds: int = DEFAULT_GAME_CLOCK_SECONDS,
+) -> float:
+    """Estimate the HUD clock from libmelee's in-game frame number."""
+    elapsed_frames = max(0, game_frame)
+    return max(0.0, game_clock_seconds - elapsed_frames / GAME_FPS)
+
+
+def format_clock(seconds: float) -> str:
+    """Format seconds as the minutes:seconds shown by Melee's HUD."""
+    total_seconds = max(0, math.ceil(seconds))
+    minutes, remainder = divmod(total_seconds, 60)
+    return f"{minutes}:{remainder:02d}"
+
+
+def winner_at_time_limit(gamestate) -> int | None:
+    """Return the winning port, or None when the time-limit score is tied.
+
+    Melee resolves a timeout by comparing remaining stocks first and damage
+    percentage second.  This uses the same ordering for the snapshot at which
+    the runner stops the game.
+    """
+    player_one = gamestate.players.get(1)
+    player_two = gamestate.players.get(2)
+    if player_one is None or player_two is None:
+        return None
+
+    if player_one.stock != player_two.stock:
+        return 1 if player_one.stock > player_two.stock else 2
+
+    if player_one.percent != player_two.percent:
+        return 1 if player_one.percent < player_two.percent else 2
+
+    return None
 
 
 def configure_render_to_main(console: melee.Console) -> None:
@@ -126,15 +170,19 @@ def main() -> int:
         help="Slippi Dolphin installation directory; auto-detected by default",
     )
     parser.add_argument(
-        "--timeout",
+        "--time-limit",
         type=float,
-        default=0,
+        default=DEFAULT_TIME_LIMIT_SECONDS,
         help=(
-            "Optional safety timeout in seconds; the runner exits when the "
-            "match ends by default (default: 0, disabled)"
+            "Stop after this many in-game seconds have elapsed. The default "
+            "is 180 seconds, which stops an 8:00 game when its clock reaches "
+            "5:00. Set to 0 to disable."
         ),
     )
     args = parser.parse_args()
+
+    if not math.isfinite(args.time_limit):
+        parser.error("--time-limit must be a finite number")
 
     iso_path = args.iso.expanduser().resolve()
     if not iso_path.is_file():
@@ -174,12 +222,13 @@ def main() -> int:
     }
     connected_controllers = []
     menu_helper = melee.MenuHelper()
-    deadline = (
+    time_limit_frames = (
         None
-        if args.timeout <= 0
-        else time.monotonic() + args.timeout
+        if args.time_limit <= 0
+        else math.ceil(args.time_limit * GAME_FPS)
     )
     match_started = False
+    time_limit_reached = False
 
     def stop(*_args) -> None:
         raise KeyboardInterrupt
@@ -209,7 +258,7 @@ def main() -> int:
             connected_controllers.append(controller)
         print("Virtual controllers connected.")
 
-        while deadline is None or time.monotonic() < deadline:
+        while True:
             gamestate = console.step()
             if gamestate is None:
                 continue
@@ -219,6 +268,45 @@ def main() -> int:
                 melee.Menu.SUDDEN_DEATH,
             ):
                 match_started = True
+
+                # There is no HUD-timer field in libmelee's GameState.  Use
+                # the Slippi in-game frame index instead; unlike a wall-clock
+                # timeout, this does not count menu time or slow Dolphin time.
+                # Do not apply the limit during sudden death: that means the
+                # normal game has already reached its own time limit.
+                if (
+                    gamestate.menu_state == melee.Menu.IN_GAME
+                    and time_limit_frames is not None
+                    and gamestate.frame >= time_limit_frames
+                ):
+                    time_limit_reached = True
+                    player_one = gamestate.players.get(1)
+                    player_two = gamestate.players.get(2)
+                    winner = winner_at_time_limit(gamestate)
+                    remaining = format_clock(time_left_seconds(gamestate.frame))
+                    if player_one is None or player_two is None:
+                        print(
+                            "Time limit reached, but the winner could not be "
+                            "determined: player state is incomplete."
+                        )
+                    else:
+                        if winner is None:
+                            result = "the score is tied"
+                        else:
+                            result = f"Player {winner} wins on time"
+                        print(
+                            f"Time limit reached ({remaining} left): "
+                            f"{result}. "
+                            f"Player 1: {player_one.stock} stock(s), "
+                            f"{player_one.percent:.1f}%; "
+                            f"Player 2: {player_two.stock} stock(s), "
+                            f"{player_two.percent:.1f}%."
+                        )
+                    # Stopping the runner's main loop causes the finally block
+                    # to disconnect controllers and stop Dolphin, ending this
+                    # round without navigating back through the menus.
+                    break
+
                 # Inputs persist in Dolphin. Neutralize each controller before
                 # dispatching so a team cannot accidentally leave stale input
                 # active from a previous frame.
@@ -258,8 +346,8 @@ def main() -> int:
                         swag=False,
                     )
 
-        if deadline is not None and time.monotonic() >= deadline:
-            print("Safety timeout reached before the match finished.")
+        if time_limit_reached:
+            print("Arena stopped after the configured time limit.")
         else:
             print("Arena finished after one match.")
         return 0
