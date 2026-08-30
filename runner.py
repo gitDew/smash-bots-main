@@ -205,6 +205,7 @@ def main() -> int:
     console = melee.Console(
         path=args.dolphin_path,
         fullscreen=True,
+        disable_audio=True,
         save_replays=False,
     )
     # Ishiiruka otherwise creates a separate game-rendering window alongside
