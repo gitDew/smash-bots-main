@@ -1,4 +1,4 @@
-"""Team B's bot: hold the main stick fully to the left."""
+"""Team B's bot: do nothing."""
 
 from __future__ import annotations
 
@@ -21,10 +21,4 @@ class Bot:
         return melee.Character.DK
 
     def act(self, gamestate, controller) -> None:
-        # The runner neutralizes the controller before calling us. Hold left
-        # every frame so this bot keeps running in that direction.
-        controller.tilt_analog(
-            melee.Button.BUTTON_MAIN,
-            0.0,  # left
-            0.5,  # vertical neutral
-        )
+        pass
