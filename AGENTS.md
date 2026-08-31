@@ -4,6 +4,10 @@ This project is for an **offline event** where kids prompt an LLM to write
 Super Smash Bros. Melee bots. The bots run against each other locally in
 Dolphin/Slippi.
 
+## Python
+
+Always use python3 on the CLI.
+
 ## Runner
 
 `runner.py` is the shared runner. It:
