@@ -77,6 +77,8 @@ these bots to Slippi Dolphin. It provides:
 - Enums such as `melee.Button.BUTTON_A`, `BUTTON_X`, and `BUTTON_MAIN`.
 
 The main documentation is at
-<https://libmelee.readthedocs.io/en/latest/>.
+<https://libmelee.readthedocs.io/en/latest/>. An offline snapshot is checked
+into `docs/libmelee/`; start with [`docs/libmelee/README.md`](docs/libmelee/README.md)
+for the local Markdown and HTML API references.
 
 Keep bot code small, understandable, and offline. Do not add online play.

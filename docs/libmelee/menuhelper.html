@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>MenuHelper &#8212; libmelee 0.47.3 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=621b9295"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Stages" href="stages.html" />
+    <link rel="prev" title="GameState" href="gamestate.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  <script async type="text/javascript" src="/_/static/javascript/readthedocs-addons.js"></script><meta name="readthedocs-project-slug" content="libmelee" /><meta name="readthedocs-version-slug" content="latest" /><meta name="readthedocs-resolver-filename" content="/menuhelper.html" /><meta name="readthedocs-http-status" content="200" /></head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="menuhelper">
+<h1>MenuHelper<a class="headerlink" href="#menuhelper" title="Link to this heading">¶</a></h1>
+<p>MenuHelper is there to automate away all the tedious menu selections and get you into the game
+as soon as possible.</p>
+<p id="module-melee.menuhelper">Helper functions for navigating the Melee menus in ways that would be
+cumbersome to do on your own. The goal here is to get you into the game
+as easily as possible so you don’t have to worry about it. Your AI should
+concentrate on playing the game, not futzing with menus.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="melee.menuhelper.MenuHelper">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">melee.menuhelper.</span></span><span class="sig-name descname"><span class="pre">MenuHelper</span></span><a class="headerlink" href="#melee.menuhelper.MenuHelper" title="Link to this definition">¶</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="melee.menuhelper.MenuHelper.change_controller_status">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">change_controller_status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><span class="pre">Controller</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamestate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><span class="pre">GameState</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">targetport</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">status</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="enums.html#melee.enums.ControllerStatus" title="melee.enums.ControllerStatus"><span class="pre">ControllerStatus</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">character</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="enums.html#melee.enums.Character" title="melee.enums.Character"><span class="pre">Character</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#melee.menuhelper.MenuHelper.change_controller_status" title="Link to this definition">¶</a></dt>
+<dd><p>Switch a given player’s controller to be of the given state</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>There’s a condition on this you need to know. The way controllers work
+in Melee, if a controller is plugged in, only that player can make the status
+go to uplugged. If you’ve ever played Melee, you probably know this. If your
+friend walks away, you have to press the A button on THEIR controller. (or
+else actually unplug the controller) No way around it.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="melee.menuhelper.MenuHelper.choose_character">
+<span class="sig-name descname"><span class="pre">choose_character</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">character</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="enums.html#melee.enums.Character" title="melee.enums.Character"><span class="pre">Character</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamestate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><span class="pre">GameState</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><span class="pre">Controller</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cpu_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">costume</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">swag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#melee.menuhelper.MenuHelper.choose_character" title="Link to this definition">¶</a></dt>
+<dd><p>Choose a character from the character select menu</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>character</strong> (<a class="reference internal" href="enums.html#melee.enums.Character" title="melee.enums.Character"><em>enums.Character</em></a>) – The character you want to pick</p></li>
+<li><p><strong>gamestate</strong> (<a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><em>gamestate.GameState</em></a>) – The current gamestate</p></li>
+<li><p><strong>controller</strong> (<a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><em>controller.Controller</em></a>) – The controller object to press buttons on</p></li>
+<li><p><strong>cpu_level</strong> (<em>int</em>) – What CPU level to set this to. 0 for human/bot controlled.</p></li>
+<li><p><strong>costume</strong> (<em>int</em>) – The costume index to choose</p></li>
+<li><p><strong>swag</strong> (<em>bool</em>) – Pick random until you get the character</p></li>
+<li><p><strong>start</strong> (<em>bool</em>) – Automatically start the match when it’s ready</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Intended to be called each frame while in the character select menu</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>All controller cursors must be above the character level for this
+to work. The match won’t start otherwise.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="melee.menuhelper.MenuHelper.choose_direct_online">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">choose_direct_online</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gamestate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><span class="pre">GameState</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><span class="pre">Controller</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#melee.menuhelper.MenuHelper.choose_direct_online" title="Link to this definition">¶</a></dt>
+<dd><p>Helper function to bring us into the direct connect online menu</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>gamestate</strong> (<a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><em>gamestate.GameState</em></a>) – The current gamestate</p></li>
+<li><p><strong>controller</strong> (<a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><em>controller.Controller</em></a>) – The controller to press buttons on</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="melee.menuhelper.MenuHelper.choose_stage">
+<span class="sig-name descname"><span class="pre">choose_stage</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="enums.html#melee.enums.Stage" title="melee.enums.Stage"><span class="pre">Stage</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamestate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><span class="pre">GameState</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><span class="pre">Controller</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">character</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="enums.html#melee.enums.Character" title="melee.enums.Character"><span class="pre">Character</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">frozen_stadium</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">autostart</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#melee.menuhelper.MenuHelper.choose_stage" title="Link to this definition">¶</a></dt>
+<dd><p>Choose a stage from the stage select menu</p>
+<p>Intended to be called each frame while in the stage select menu</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>stage</strong> (<a class="reference internal" href="enums.html#melee.enums.Stage" title="melee.enums.Stage"><em>enums.Stage</em></a>) – The stage you want to select</p></li>
+<li><p><strong>gamestate</strong> (<a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><em>gamestate.GameState</em></a>) – The current gamestate</p></li>
+<li><p><strong>controller</strong> (<a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><em>controller.Controller</em></a>) – The controller object to press</p></li>
+<li><p><strong>frozen_stadium</strong> (<em>bool</em>) – Whether to use Frozen Stadium as the stage.</p></li>
+<li><p><strong>autostart</strong> (<em>bool</em>) – Whether to actually select the stage and start
+the match. Should only be true for one controller.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="melee.menuhelper.MenuHelper.choose_versus_mode">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">choose_versus_mode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gamestate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><span class="pre">GameState</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><span class="pre">Controller</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#melee.menuhelper.MenuHelper.choose_versus_mode" title="Link to this definition">¶</a></dt>
+<dd><p>Helper function to bring us into the versus mode menu</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>gamestate</strong> (<a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><em>gamestate.GameState</em></a>) – The current gamestate</p></li>
+<li><p><strong>controller</strong> (<a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><em>controller.Controller</em></a>) – The controller to press buttons on</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="melee.menuhelper.MenuHelper.enter_direct_code">
+<span class="sig-name descname"><span class="pre">enter_direct_code</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gamestate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><span class="pre">GameState</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><span class="pre">Controller</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_code</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#melee.menuhelper.MenuHelper.enter_direct_code" title="Link to this definition">¶</a></dt>
+<dd><p>At the nametag entry screen, enter the given direct connect code and exit</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>gamestate</strong> (<a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><em>gamestate.GameState</em></a>) – The current GameState for this frame</p></li>
+<li><p><strong>controller</strong> (<a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><em>controller.Controller</em></a>) – A Controller object to press buttons on</p></li>
+<li><p><strong>connect_code</strong> (<em>str</em>) – The connect code to direct match with. Leave blank for VS mode.</p></li>
+<li><p><strong>index</strong> (<em>int</em>) – Current name tag index</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>new index (incremented if we entered a new character)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="melee.menuhelper.MenuHelper.menu_helper_simple">
+<span class="sig-name descname"><span class="pre">menu_helper_simple</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gamestate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><span class="pre">GameState</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><span class="pre">Controller</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">character_selected</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="enums.html#melee.enums.Character" title="melee.enums.Character"><span class="pre">Character</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage_selected</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="enums.html#melee.enums.Stage" title="melee.enums.Stage"><span class="pre">Stage</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">connect_code</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cpu_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">costume</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">autostart</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">swag</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frozen_stadium</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#melee.menuhelper.MenuHelper.menu_helper_simple" title="Link to this definition">¶</a></dt>
+<dd><p>Simplified menu helper function to get you through the menus and into a game</p>
+<p>Does everything for you but play the game. Gets you to the right menu screen, picks
+your character, chooses the stage, enters connect codes, etc…</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>gamestate</strong> (<a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><em>gamestate.GameState</em></a>) – The current GameState for this frame</p></li>
+<li><p><strong>controller</strong> (<a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><em>controller.Controller</em></a>) – A Controller object that the bot will press buttons on</p></li>
+<li><p><strong>character_selected</strong> (<a class="reference internal" href="enums.html#melee.enums.Character" title="melee.enums.Character"><em>enums.Character</em></a>) – The character your bot will play as</p></li>
+<li><p><strong>stage_selected</strong> (<a class="reference internal" href="enums.html#melee.enums.Stage" title="melee.enums.Stage"><em>enums.Stage</em></a>) – The stage your bot will choose to play on</p></li>
+<li><p><strong>connect_code</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The connect code to direct match with. Leave blank for VS mode.</p></li>
+<li><p><strong>cpu_level</strong> (<em>int</em>) – What CPU level to set this to. 0 for human/bot controlled.</p></li>
+<li><p><strong>costume</strong> (<em>int</em>) – Costume index chosen</p></li>
+<li><p><strong>autostart</strong> (<em>bool</em>) – Automatically start the game when it’s ready.
+Useful for BotvBot matches where no human is there to start it.</p></li>
+<li><p><strong>swag</strong> (<em>bool</em>) – What it sounds like</p></li>
+<li><p><strong>frozen_stadium</strong> (<em>bool</em>) – Whether to use Frozen Stadium as the stage.
+Only makes sense for Slippi &gt;= 3.19.0.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="melee.menuhelper.MenuHelper.skip_postgame">
+<span class="sig-name descname"><span class="pre">skip_postgame</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="controller.html#melee.controller.Controller" title="melee.controller.Controller"><span class="pre">Controller</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#melee.menuhelper.MenuHelper.skip_postgame" title="Link to this definition">¶</a></dt>
+<dd><p>Spam the start button</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">libmelee</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="console.html">Console</a></li>
+<li class="toctree-l1"><a class="reference internal" href="controller.html">Controller</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gamestate.html">GameState</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">MenuHelper</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#melee.menuhelper.MenuHelper"><code class="docutils literal notranslate"><span class="pre">MenuHelper</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#melee.menuhelper.MenuHelper.change_controller_status"><code class="docutils literal notranslate"><span class="pre">MenuHelper.change_controller_status()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#melee.menuhelper.MenuHelper.choose_character"><code class="docutils literal notranslate"><span class="pre">MenuHelper.choose_character()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#melee.menuhelper.MenuHelper.choose_direct_online"><code class="docutils literal notranslate"><span class="pre">MenuHelper.choose_direct_online()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#melee.menuhelper.MenuHelper.choose_stage"><code class="docutils literal notranslate"><span class="pre">MenuHelper.choose_stage()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#melee.menuhelper.MenuHelper.choose_versus_mode"><code class="docutils literal notranslate"><span class="pre">MenuHelper.choose_versus_mode()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#melee.menuhelper.MenuHelper.enter_direct_code"><code class="docutils literal notranslate"><span class="pre">MenuHelper.enter_direct_code()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#melee.menuhelper.MenuHelper.menu_helper_simple"><code class="docutils literal notranslate"><span class="pre">MenuHelper.menu_helper_simple()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#melee.menuhelper.MenuHelper.skip_postgame"><code class="docutils literal notranslate"><span class="pre">MenuHelper.skip_postgame()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="stages.html">Stages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="framedata.html">Framedata</a></li>
+<li class="toctree-l1"><a class="reference internal" href="logger.html">Logger</a></li>
+<li class="toctree-l1"><a class="reference internal" href="enums.html">Enums</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="gamestate.html" title="previous chapter">GameState</a></li>
+      <li>Next: <a href="stages.html" title="next chapter">Stages</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, AltF4, Vlad Firoiu.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/menuhelper.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

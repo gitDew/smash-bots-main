@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Logger &#8212; libmelee 0.47.3 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=621b9295"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Enums" href="enums.html" />
+    <link rel="prev" title="Framedata" href="framedata.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  <script async type="text/javascript" src="/_/static/javascript/readthedocs-addons.js"></script><meta name="readthedocs-project-slug" content="libmelee" /><meta name="readthedocs-version-slug" content="latest" /><meta name="readthedocs-resolver-filename" content="/logger.html" /><meta name="readthedocs-http-status" content="200" /></head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="logger">
+<h1>Logger<a class="headerlink" href="#logger" title="Link to this heading">¶</a></h1>
+<blockquote>
+<div><p id="module-melee.logger">A custom logger for a console. Writes the gametstate out to a CSV file
+so you can retroactively view the game frame-by-frame</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="melee.logger.Logger">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">melee.logger.</span></span><span class="sig-name descname"><span class="pre">Logger</span></span><a class="headerlink" href="#melee.logger.Logger" title="Link to this definition">¶</a></dt>
+<dd><p>A custom logger for a console. Writes the gametstate out to a CSV file each frame
+so you can retroactively view the game frame-by-frame</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="melee.logger.Logger.log">
+<span class="sig-name descname"><span class="pre">log</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">contents</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">concat</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#melee.logger.Logger.log" title="Link to this definition">¶</a></dt>
+<dd><p>Write ‘contents’ to the log at given ‘column’</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>column</strong> (<em>str</em>) – The column to write the log message at</p></li>
+<li><p><strong>contents</strong> (<em>str</em>) – The thing to write to the log</p></li>
+<li><p><strong>concat</strong> (<em>bool</em>) – Should we concatenate the contents to the existing log at that column
+(or replace it)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="melee.logger.Logger.logframe">
+<span class="sig-name descname"><span class="pre">logframe</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gamestate</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#melee.logger.Logger.logframe" title="Link to this definition">¶</a></dt>
+<dd><p>Log any common per-frame things</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>gamestate</strong> (<a class="reference internal" href="gamestate.html#melee.gamestate.GameState" title="melee.gamestate.GameState"><em>gamestate.GameState</em></a>) – A gamestate object to log</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="melee.logger.Logger.skipframe">
+<span class="sig-name descname"><span class="pre">skipframe</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#melee.logger.Logger.skipframe" title="Link to this definition">¶</a></dt>
+<dd><p>Skip this frame in the log</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="melee.logger.Logger.writeframe">
+<span class="sig-name descname"><span class="pre">writeframe</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#melee.logger.Logger.writeframe" title="Link to this definition">¶</a></dt>
+<dd><p>Write the current frame to the log and move to a new frame</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="melee.logger.Logger.writelog">
+<span class="sig-name descname"><span class="pre">writelog</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#melee.logger.Logger.writelog" title="Link to this definition">¶</a></dt>
+<dd><p>Write the log to file</p>
+</dd></dl>
+
+</dd></dl>
+
+</div></blockquote>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">libmelee</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="console.html">Console</a></li>
+<li class="toctree-l1"><a class="reference internal" href="controller.html">Controller</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gamestate.html">GameState</a></li>
+<li class="toctree-l1"><a class="reference internal" href="menuhelper.html">MenuHelper</a></li>
+<li class="toctree-l1"><a class="reference internal" href="stages.html">Stages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="framedata.html">Framedata</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Logger</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#melee.logger.Logger"><code class="docutils literal notranslate"><span class="pre">Logger</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#melee.logger.Logger.log"><code class="docutils literal notranslate"><span class="pre">Logger.log()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#melee.logger.Logger.logframe"><code class="docutils literal notranslate"><span class="pre">Logger.logframe()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#melee.logger.Logger.skipframe"><code class="docutils literal notranslate"><span class="pre">Logger.skipframe()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#melee.logger.Logger.writeframe"><code class="docutils literal notranslate"><span class="pre">Logger.writeframe()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#melee.logger.Logger.writelog"><code class="docutils literal notranslate"><span class="pre">Logger.writelog()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="enums.html">Enums</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="framedata.html" title="previous chapter">Framedata</a></li>
+      <li>Next: <a href="enums.html" title="next chapter">Enums</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, AltF4, Vlad Firoiu.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/logger.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
