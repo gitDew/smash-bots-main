@@ -205,7 +205,9 @@ def main() -> int:
     console = melee.Console(
         path=args.dolphin_path,
         fullscreen=True,
-        disable_audio=True,
+        # Slippi's Vulkan backend can crash on macOS; use OpenGL instead.
+        gfx_backend="OGL" if sys.platform == "darwin" else "",
+        disable_audio=False,
         save_replays=False,
     )
     # Ishiiruka otherwise creates a separate game-rendering window alongside
