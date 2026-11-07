@@ -16,11 +16,20 @@ import sys
 from pathlib import Path
 import melee
 
+from replay import NativeReplayRecorder, RecordingError
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_ISO = PROJECT_ROOT / "smash_bros_melee.iso"
 DEFAULT_P1_BOT = PROJECT_ROOT / "teams" / "team_a" / "bot.py"
 DEFAULT_P2_BOT = PROJECT_ROOT / "teams" / "team_b" / "bot.py"
+DEFAULT_P3_BOT = PROJECT_ROOT / "teams" / "team_c" / "bot.py"
+DEFAULT_P4_BOT = PROJECT_ROOT / "teams" / "team_d" / "bot.py"
+DEFAULT_DOLPHIN = (
+    PROJECT_ROOT / ".dolphin" / "netplay-beta" / "Slippi_Dolphin.app"
+    / "Contents" / "MacOS" / "Slippi_Dolphin"
+)
+DEFAULT_REPLAY_DIR = PROJECT_ROOT / "replays"
 
 # Melee's game timer runs at 60 frames per second.  libmelee does not expose
 # the HUD timer on GameState, but GameState.frame is the in-game frame index.
@@ -136,8 +145,10 @@ def navigate_menu(menu_helper, gamestate, controllers, characters, stage) -> Non
         )
 
 
-def configure_render_to_main(console: melee.Console) -> None:
-    """Use one Dolphin window by rendering the game in its main frame."""
+def configure_render_to_main(
+    console: melee.Console, *, legacy_macos_fallback: bool = False,
+) -> None:
+    """Use one Dolphin window and retain OpenGL for older macOS builds."""
     if console.dolphin_home_path is None:
         raise RuntimeError("Dolphin home directory was not initialized")
 
@@ -147,9 +158,22 @@ def configure_render_to_main(console: melee.Console) -> None:
     if not config.has_section("Display"):
         config.add_section("Display")
     config.set("Display", "RenderToMain", "True")
+    if legacy_macos_fallback and not console.is_mainline:
+        if not config.has_section("Core"):
+            config.add_section("Core")
+        config.set("Core", "GFXBackend", "OGL")
+        console.gfx_backend = "OGL"
 
     with config_path.open("w") as config_file:
         config.write(config_file)
+
+
+def stop_dolphin(console: melee.Console) -> None:
+    """Stop libmelee safely even if its connection worker never started."""
+    worker = console._slippstream._worker
+    if worker is not None and worker.pid is None:
+        console._slippstream._worker = None
+    console.stop()
 
 
 def load_bot(bot_path: Path, port: int):
@@ -214,6 +238,10 @@ def get_bot_character(bot, port: int) -> melee.Character:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--players", type=int, choices=(2, 3, 4), default=4,
+        help="Number of players (default: 4)",
+    )
+    parser.add_argument(
         "--p1",
         type=Path,
         default=DEFAULT_P1_BOT,
@@ -228,12 +256,12 @@ def main() -> int:
     parser.add_argument(
         "--p3",
         type=Path,
-        help="Bot file for player 3 (optional)",
+        help="Bot file for player 3 (default: teams/team_c/bot.py)",
     )
     parser.add_argument(
         "--p4",
         type=Path,
-        help="Bot file for player 4 (optional; requires --p3)",
+        help="Bot file for player 4 (default: teams/team_d/bot.py)",
     )
     parser.add_argument(
         "--iso",
@@ -245,8 +273,13 @@ def main() -> int:
         "-e",
         "--dolphin",
         dest="dolphin_path",
-        default=None,
-        help="Slippi Dolphin installation directory; auto-detected by default",
+        type=Path,
+        default=DEFAULT_DOLPHIN,
+        help="Slippi Mainline executable or installation directory (default: project-local beta)",
+    )
+    parser.add_argument(
+        "--gfx-backend",
+        help="Dolphin graphics backend (default: Metal on macOS; e.g. OGL for OpenGL)",
     )
     parser.add_argument(
         "--time-limit",
@@ -258,18 +291,28 @@ def main() -> int:
             "6:00. Set to 0 to disable."
         ),
     )
+    parser.add_argument(
+        "--no-record", action="store_true",
+        help="Run without automatically recording a video",
+    )
+    parser.add_argument(
+        "--replay-dir", type=Path, default=DEFAULT_REPLAY_DIR,
+        help="Directory for recorded MP4 files (default: ./replays in the arena directory)",
+    )
     args = parser.parse_args()
-
     if not math.isfinite(args.time_limit):
         parser.error("--time-limit must be a finite number")
-    if args.p4 is not None and args.p3 is None:
-        parser.error("--p4 requires --p3")
+    if args.players < 3 and args.p3 is not None:
+        parser.error("--p3 requires at least 3 players")
+    if args.players < 4 and args.p4 is not None:
+        parser.error("--p4 requires 4 players")
 
-    bot_paths = {
-        port: path
-        for port, path in enumerate((args.p1, args.p2, args.p3, args.p4), start=1)
-        if path is not None
-    }
+    player_paths = (
+        args.p1, args.p2,
+        args.p3 if args.p3 is not None else DEFAULT_P3_BOT,
+        args.p4 if args.p4 is not None else DEFAULT_P4_BOT,
+    )
+    bot_paths = dict(enumerate(player_paths[:args.players], start=1))
     iso_path = args.iso.expanduser().resolve()
     if not iso_path.is_file():
         print(f"ISO not found: {iso_path}", file=sys.stderr)
@@ -285,32 +328,60 @@ def main() -> int:
     }
     stage = melee.Stage.RANDOM_STAGE
 
-    console = melee.Console(
-        path=args.dolphin_path,
-        fullscreen=True,
-        # Slippi's Vulkan backend can crash on macOS; use OpenGL instead.
-        gfx_backend="OGL" if sys.platform == "darwin" else "",
-        disable_audio=False,
-        save_replays=False,
-    )
-    # Ishiiruka otherwise creates a separate game-rendering window alongside
-    # its main "Faster Melee Slippi" window. Render into the main frame so
-    # the arena has only one visible window.
-    configure_render_to_main(console)
-
-    controllers = {
-        port: melee.Controller(
-            console=console,
-            port=port,
-            type=melee.ControllerType.STANDARD,
+    recorder = None
+    console = None
+    try:
+        if not args.no_record:
+            recorder = NativeReplayRecorder.start(args.replay_dir)
+        console = melee.Console(
+            path=str(args.dolphin_path.expanduser().resolve()),
+            fullscreen=True,
+            gfx_backend=args.gfx_backend if args.gfx_backend is not None else (
+                "Metal" if sys.platform == "darwin" else ""
+            ),
+            disable_audio=False,
+            save_replays=False,
+            dolphin_home_path=str(recorder.home) if recorder else None,
+            tmp_home_directory=recorder is None,
+            dump_config=melee.DumpConfig(
+                dump=True, format="matroska", codec="h264", encoder="h264_videotoolbox",
+            ) if recorder else None,
         )
-        for port in bots
-    }
-    # Explicitly disconnect unused Dolphin ports instead of relying on its
-    # defaults. Character select can still contain CPUs, handled below.
-    for port in range(1, 5):
-        if port not in controllers:
-            console.setup_dolphin_controller(port, melee.ControllerType.UNPLUGGED)
+        if recorder is not None and not console.is_mainline:
+            raise RecordingError("Video recording requires the project-local Slippi Mainline beta.")
+        configure_render_to_main(
+            console, legacy_macos_fallback=sys.platform == "darwin" and args.gfx_backend is None,
+        )
+
+        controllers = {
+            port: melee.Controller(
+                console=console,
+                port=port,
+                type=melee.ControllerType.STANDARD,
+            )
+            for port in bots
+        }
+        # Explicitly disconnect unused ports. Character select can still
+        # contain CPUs, handled by navigate_menu().
+        for port in range(1, 5):
+            if port not in controllers:
+                console.setup_dolphin_controller(port, melee.ControllerType.UNPLUGGED)
+    except BaseException as exc:
+        try:
+            if console is not None:
+                stop_dolphin(console)
+        finally:
+            if recorder is not None:
+                try:
+                    recorder.finish(match_started=False)
+                except RecordingError as cleanup_exc:
+                    print(f"Recording error: {cleanup_exc}", file=sys.stderr)
+        if isinstance(exc, (RecordingError, FileNotFoundError)):
+            print(f"Could not start the arena: {exc}", file=sys.stderr)
+            if isinstance(exc, FileNotFoundError):
+                print("Run ./install_dolphin.sh to install the project-local beta.", file=sys.stderr)
+            return 1
+        raise
     connected_controllers = []
     menu_helper = melee.MenuHelper()
     time_limit_frames = (
@@ -321,18 +392,24 @@ def main() -> int:
     match_started = False
     participants_checked = False
     time_limit_reached = False
+    frame_dump_checked = False
 
     def stop(*_args) -> None:
         raise KeyboardInterrupt
 
-    signal.signal(signal.SIGINT, stop)
+    previous_sigint = signal.signal(signal.SIGINT, stop)
+    recording_failed = False
 
     try:
+        if recorder is not None:
+            print(f"Recording to: {recorder.path}", flush=True)
         for port, path in bot_paths.items():
             print(f"Player {port} bot: {path.expanduser()}")
         print(f"Selected stage: {stage.name}")
         print(f"Starting Dolphin with {iso_path}")
         console.run(iso_path=str(iso_path))
+        if recorder is not None:
+            recorder.attach(console._process.pid)
 
         print("Connecting to Slippi...")
         if not console.connect():
@@ -351,6 +428,8 @@ def main() -> int:
         print("Virtual controllers connected.")
 
         while True:
+            if recorder is not None:
+                recorder.check()
             gamestate = console.step()
             if gamestate is None:
                 continue
@@ -381,6 +460,12 @@ def main() -> int:
                         )
                         return 1
                     participants_checked = True
+
+                # Stop early rather than silently losing a whole match if the
+                # native video encoder did not start.
+                if recorder is not None and not frame_dump_checked and gamestate.frame >= 300:
+                    recorder.check_frames()
+                    frame_dump_checked = True
 
                 # There is no HUD-timer field in libmelee's GameState.  Use
                 # the Slippi in-game frame index instead; unlike a wall-clock
@@ -454,10 +539,39 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\nInterrupted.")
         return 130
+    except RecordingError as exc:
+        recording_failed = True
+        print(f"Recording error: {exc}", file=sys.stderr)
+        return 1
     finally:
-        for controller in connected_controllers:
-            controller.disconnect()
-        console.stop()
+        # A second Ctrl-C must not interrupt Dolphin cleanup or video saving.
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        cleanup_error = None
+        dolphin_stopped = False
+        try:
+            try:
+                for controller in connected_controllers:
+                    controller.disconnect()
+            finally:
+                stop_dolphin(console)
+                dolphin_stopped = True
+        finally:
+            try:
+                if recorder is not None:
+                    try:
+                        saved = recorder.finish(
+                            match_started=match_started, dolphin_stopped=dolphin_stopped,
+                        )
+                    except RecordingError as exc:
+                        cleanup_error = exc
+                    else:
+                        if saved and not recording_failed:
+                            print(f"Replay saved: {recorder.path}")
+            finally:
+                signal.signal(signal.SIGINT, previous_sigint)
+        if cleanup_error is not None and not recording_failed:
+            print(f"Recording error: {cleanup_error}", file=sys.stderr)
+            return 1
 
 
 if __name__ == "__main__":

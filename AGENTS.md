@@ -19,7 +19,8 @@ Always use python3 on the CLI.
 - Stops after the match.
 
 Team LLMs should **not modify `runner.py`**. Bot changes belong in the team's
-`bot.py` file.
+`bot.py` file. The macOS arena uses the project-local Slippi Mainline beta;
+install it with `./install_dolphin.sh`. It records Dolphin's own game frames.
 
 ## Team bots
 
@@ -27,15 +28,15 @@ Each team has its own bot file:
 
 - `teams/team_a/bot.py` — default player 1
 - `teams/team_b/bot.py` — default player 2
-- `teams/team_c/bot.py` — example player 3
-- `teams/team_d/bot.py` — example player 4
+- `teams/team_c/bot.py` — default player 3
+- `teams/team_d/bot.py` — default player 4
 
-The runner uses two players by default. Use `--p3` to add a third and `--p4`
-to add a fourth (`--p4` requires `--p3`). All four `--p1`–`--p4` arguments
-accept bot paths, so a team is not permanently tied to one port. For example:
+The runner uses all four players by default. Use `--players 2` or `--players 3`
+for a smaller match. All four `--p1`–`--p4` arguments accept bot paths, so a
+team is not permanently tied to one port. For example:
 
 ```sh
-python3 runner.py --p3 teams/team_c/bot.py --p4 teams/team_d/bot.py
+python3 runner.py --players 3 --p3 teams/team_c/bot.py
 ```
 
 Matches are free-for-alls, not a two-versus-two team mode.
