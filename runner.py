@@ -27,7 +27,7 @@ DEFAULT_P2_BOT = PROJECT_ROOT / "teams" / "team_b" / "bot.py"
 # Frame 0 is the start of timed gameplay; negative frames are the countdown.
 GAME_FPS = 60
 DEFAULT_GAME_CLOCK_SECONDS = 8 * 60
-DEFAULT_TIME_LIMIT_SECONDS = 3 * 60
+DEFAULT_TIME_LIMIT_SECONDS = 2 * 60
 
 
 def time_left_seconds(
@@ -175,8 +175,8 @@ def main() -> int:
         default=DEFAULT_TIME_LIMIT_SECONDS,
         help=(
             "Stop after this many in-game seconds have elapsed. The default "
-            "is 180 seconds, which stops an 8:00 game when its clock reaches "
-            "5:00. Set to 0 to disable."
+            "is 120 seconds, which stops an 8:00 game when its clock reaches "
+            "6:00. Set to 0 to disable."
         ),
     )
     args = parser.parse_args()
