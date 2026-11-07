@@ -3,41 +3,42 @@
 ## 1. Create the repositories
 
 - [ ] Keep the current repository as the main arena repository.
-- [ ] Create a Team A GitHub repository containing Team A's `bot.py`.
-- [ ] Create a Team B GitHub repository containing Team B's `bot.py`.
+- [ ] Create separate Team A, B, C, and D GitHub repositories, each containing
+      that team's `bot.py`.
 - [ ] Keep the team repositories separate from the main repository.
 - [ ] Keep the team repositories limited to the team's bot file.
 
 ## 2. Configure GitHub access
 
-- [ ] Create a fine-grained GitHub token for Team A.
-- [ ] Give the token access only to the Team A repository.
-- [ ] Grant only the permissions needed to clone, commit, and push.
-- [ ] Create a separate token for Team B with access only to the Team B repository.
-- [ ] Do not put the main repository credentials on either team laptop.
+- [ ] Create a separate fine-grained GitHub token for each of Teams A–D.
+- [ ] Give each token access only to its team's repository, with only the
+      permissions needed to clone and push.
+- [ ] Do not put the main repository credentials on the team laptops.
 - [ ] Set an expiration date for the tokens.
 - [ ] Revoke the tokens after the event.
 
 ## 3. Set up the master laptop
 
-- [ ] Create a directory containing three sibling repositories:
+- [ ] Create a directory containing the arena and four sibling team repositories:
 
   ```text
   smash-bots-event/
-  ├── arena/             # main repository
-  ├── team-a-bot/        # Team A repository
-  └── team-b-bot/        # Team B repository
+  ├── arena/
+  ├── team-a-bot/
+  ├── team-b-bot/
+  ├── team-c-bot/
+  └── team-d-bot/
   ```
 
-- [ ] Clone the main repository into `arena/`.
-- [ ] Clone the Team A repository into `team-a-bot/`.
-- [ ] Clone the Team B repository into `team-b-bot/`.
-- [ ] Use the existing runner arguments to run the sibling bot files:
+- [ ] Clone the arena and each team's repository into those directories.
+- [ ] Use the runner arguments to run two to four sibling bot files, for example:
 
-  ```text
-  python arena/runner.py \\
-    --p1 team-a-bot/bot.py \\
-    --p2 team-b-bot/bot.py
+  ```sh
+  python3 arena/runner.py \
+    --p1 team-a-bot/bot.py \
+    --p2 team-b-bot/bot.py \
+    --p3 team-c-bot/bot.py \
+    --p4 team-d-bot/bot.py
   ```
 
 - [ ] Do not use nested repositories or submodules.
@@ -59,16 +60,11 @@
 
 ## 5. Create the team launch configuration
 
-- [ ] Use one generic Docker image for both teams.
-- [ ] Create a Team A environment file containing:
-  - [ ] Team ID.
-  - [ ] Team A repository URL.
-  - [ ] Team A branch.
-  - [ ] Team A GitHub token.
-  - [ ] LLM provider API token.
-- [ ] Create an equivalent Team B environment file.
+- [ ] Use one generic Docker image for all four teams.
+- [ ] Create one environment file per team containing its ID, repository URL,
+      branch, GitHub token, and LLM provider API token.
 - [ ] Do not commit the environment files.
-- [ ] Create `run-team-a` and `run-team-b` launch scripts.
+- [ ] Create launchers for all four teams on Windows and Linux.
 - [ ] Have each launcher start the image with its environment file.
 - [ ] Use ephemeral container storage initially.
 - [ ] Have the container clone the configured team repository at startup.
@@ -96,25 +92,20 @@
 - [ ] Commit with a generated team-specific message.
 - [ ] Push only to the configured team repository and branch.
 - [ ] Keep the GitHub token available only at runtime.
-- [ ] Test Team A submission with the Team A token.
-- [ ] Test Team B submission with the Team B token.
+- [ ] Test each team's submission with its own token.
 
 ## 8. Implement the master pull-and-launch script
 
 - [ ] Pull the main repository.
-- [ ] Pull the Team A repository.
-- [ ] Pull the Team B repository.
-- [ ] Run `runner.py` with the Team A and Team B bot paths.
+- [ ] Pull each team's repository.
+- [ ] Run `runner.py` with two to four selected bot paths.
 - [ ] Add the Dolphin/ISO arguments needed on the master laptop.
 
 ## 9. Test the complete workflow
 
 - [ ] Build the Docker image.
-- [ ] Start the Team A container.
-- [ ] Confirm Pi can use the reference documentation.
-- [ ] Confirm Pi can write Team A's `bot.py`.
+- [ ] Start each team container and confirm Pi can use the reference docs and
+      write and submit only that team's `bot.py`.
 - [ ] Confirm Pi cannot use the disabled tools.
-- [ ] Confirm `submit_bot()` creates and pushes a Team A commit.
-- [ ] Repeat the process for Team B.
-- [ ] Pull both repositories on the master laptop.
-- [ ] Launch a match using the two submitted bot files.
+- [ ] Pull all four repositories on the master laptop.
+- [ ] Test two-, three-, and four-player matches using submitted bot files.
