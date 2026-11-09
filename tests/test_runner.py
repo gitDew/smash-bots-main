@@ -152,27 +152,19 @@ class RunnerTests(unittest.TestCase):
                 self.assertEqual(config.get("Core", "GFXBackend"), expected)
                 self.assertTrue(config.getboolean("Display", "RenderToMain"))
 
-    def test_same_named_bot_files_are_loaded_as_separate_modules(self):
-        with tempfile.TemporaryDirectory() as directory:
-            paths = [Path(directory) / team / "bot.py" for team in ("a", "b")]
-            for path in paths:
-                path.parent.mkdir()
-                path.write_text(
-                    "class Bot:\n"
-                    "    def __init__(self, port): self.port = port\n"
-                    "    def get_character(self): pass\n"
-                    "    def act(self, gamestate, controller): pass\n"
-                )
-            first, second = (runner.load_bot(path, port) for port, path in enumerate(paths, 1))
-            self.assertEqual((first.port, second.port), (1, 2))
-            self.assertIsNot(type(first), type(second))
+    def test_fighter_reads_the_container_and_character(self):
+        self.assertEqual(runner.fighter("smash-team-1=MARTH"), ("smash-team-1", melee.Character.MARTH))
 
-    def test_bot_arguments_must_fit_the_player_count(self):
-        for args in (
-            ["--players", "2", "--p3", "team_c/bot.py"],
-            ["--players", "3", "--p4", "team_d/bot.py"],
+    def test_match_needs_valid_and_different_fighters(self):
+        for fighters in (
+            ["a=FOX"],
+            ["a=FOX", "b=DK", "c=MARTH", "d=FALCO", "e=ROY"],
+            ["a=FOX", "b=FOX"],
+            ["a=FOX", "b=NANA"],
+            ["a", "b"],
+            ["a=FOX", "=DK"],
         ):
-            with self.subTest(args=args), patch.object(sys, "argv", ["runner.py", *args]):
+            with self.subTest(fighters=fighters), patch.object(sys, "argv", ["runner.py", *fighters]):
                 with contextlib.redirect_stderr(io.StringIO()):
                     with self.assertRaises(SystemExit) as error:
                         runner.main()
@@ -182,21 +174,17 @@ class RunnerTests(unittest.TestCase):
         self, count, *, missing_port=None, unexpected_port=None, team_mode=False,
         incomplete_countdown=False, absent_later=None, interrupted=False,
         recording_error=None, frame_error=None, stop_error=None, no_record=False,
-        use_default_players=False, use_default_bots=False, gfx_backend=None,
+        gfx_backend=None,
     ):
         with tempfile.TemporaryDirectory() as directory:
             iso = Path(directory) / "game.iso"
             iso.touch()
             args = ["runner.py", "--iso", str(iso), "--time-limit", "1"]
-            if not use_default_players:
-                args.extend(("--players", str(count)))
+            args.extend(f"smash-team-{port}={CHARACTERS[port - 1].name}" for port in range(1, count + 1))
             if no_record:
                 args.append("--no-record")
             if gfx_backend is not None:
                 args.extend(("--gfx-backend", gfx_backend))
-            if not use_default_bots:
-                for port in range(3, count + 1):
-                    args.extend((f"--p{port}", f"player{port}.py"))
 
             controllers = {}
             def make_controller(*, console, port, type):
@@ -206,9 +194,10 @@ class RunnerTests(unittest.TestCase):
                 return controller
 
             bots = {}
-            def make_bot(path, port):
+            def make_bot(container, port):
+                self.assertEqual(container, f"smash-team-{port}")
                 bot = Mock()
-                bot.get_character.return_value = CHARACTERS[port - 1]
+                bot.start.return_value = bot
                 bots[port] = bot
                 return bot
 
@@ -258,7 +247,7 @@ class RunnerTests(unittest.TestCase):
                 patch.object(runner.melee, "MenuHelper", return_value=menu_helper),
                 patch.object(runner, "configure_render_to_main"),
                 patch.object(runner.NativeReplayRecorder, "start", return_value=recorder) as start_recording,
-                patch.object(runner, "load_bot", side_effect=make_bot),
+                patch.object(runner, "ContainerBot", side_effect=make_bot),
                 patch.object(runner.signal, "signal"),
                 contextlib.redirect_stdout(output),
                 contextlib.redirect_stderr(errors),
@@ -301,31 +290,16 @@ class RunnerTests(unittest.TestCase):
                 self.assertIn(f"Player {count} wins on time", output)
                 for port in range(1, count + 1):
                     self.assertIn(f"Player {port}:", output)
-                    bots[port].act.assert_called_once()
-                    self.assertIs(bots[port].act.call_args.args[1], controllers[port])
-
-    def test_default_match_uses_all_four_default_bots(self):
-        result, bots, _, output, _ = self.run_mocked_match(
-            4, use_default_players=True, use_default_bots=True,
-        )
-        self.assertEqual(result, 0)
-        self.assertEqual(set(bots), {1, 2, 3, 4})
-        self.assertIn(str(runner.DEFAULT_P3_BOT), output)
-        self.assertIn(str(runner.DEFAULT_P4_BOT), output)
-
-    def test_three_players_can_use_the_default_third_bot(self):
-        result, bots, _, output, _ = self.run_mocked_match(3, use_default_bots=True)
-        self.assertEqual(result, 0)
-        self.assertEqual(set(bots), {1, 2, 3})
-        self.assertIn(str(runner.DEFAULT_P3_BOT), output)
-        self.assertNotIn(str(runner.DEFAULT_P4_BOT), output)
+                    bots[port].send.assert_called_once()
+                    bots[port].get_character.assert_not_called()
+                    self.assertIs(bots[port].apply.call_args.args[0], controllers[port])
 
     def test_rejects_match_that_did_not_include_every_configured_player(self):
         result, bots, _, _, errors = self.run_mocked_match(4, missing_port=4)
         self.assertEqual(result, 1)
         self.assertIn("missing ports [4]", errors)
         for bot in bots.values():
-            bot.act.assert_not_called()
+            bot.send.assert_not_called()
 
     def test_rejects_unexpected_player_and_team_mode(self):
         result, _, _, _, errors = self.run_mocked_match(3, unexpected_port=4)
@@ -374,8 +348,8 @@ class RunnerTests(unittest.TestCase):
         )
         self.assertEqual(result, 0)
         for port in (1, 2, 3):
-            self.assertEqual(bots[port].act.call_count, 2)
-        self.assertEqual(bots[4].act.call_count, 1)
+            self.assertEqual(bots[port].send.call_count, 2)
+        self.assertEqual(bots[4].send.call_count, 1)
 
 
 if __name__ == "__main__":

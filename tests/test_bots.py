@@ -1,18 +1,14 @@
 """Test starter bot decisions without starting Dolphin."""
 
+import importlib.util
 from pathlib import Path
-import sys
 import unittest
 from unittest.mock import Mock
 
 import melee
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import runner
 
-
-ROOT = Path(__file__).resolve().parents[1]
-BOTS = [ROOT / "teams" / f"team_{team}" / "bot.py" for team in "abcd"]
+STARTER = Path(__file__).resolve().parents[1] / "server" / "starter_bot.py"
 
 
 def player(x=0, y=0, *, stock=4, facing=True, off_stage=False,
@@ -26,9 +22,10 @@ def player(x=0, y=0, *, stock=4, facing=True, off_stage=False,
 
 class StarterBotTests(unittest.TestCase):
     def bots(self, port):
-        for path in BOTS:
-            with self.subTest(bot=path.parent.name):
-                yield runner.load_bot(path, port)
+        spec = importlib.util.spec_from_file_location("starter_bot", STARTER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        yield module.Bot(port=port)
 
     def test_runs_towards_nearest_active_opponent_on_any_port(self):
         state = melee.GameState(frame=1, players={

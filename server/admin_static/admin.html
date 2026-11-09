@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smash Bots Admin</title>
+  <link rel="stylesheet" href="/static/retro.css">
+</head>
+<body>
+  <header class="top">
+    <div class="logo"><div>SMASH<span>BOTS</span> ADMIN</div></div>
+    <div class="team-name">HOST CONSOLE</div>
+  </header>
+
+  <div class="banner" id="connection" hidden>RECONNECTING...</div>
+  <div class="banner" id="health" hidden></div>
+
+  <section class="status" id="status" data-mood="wait">
+    <div class="status-label"><span id="status-label">LOADING</span></div>
+    <div class="status-title" id="status-title">...</div>
+    <div class="status-clock" id="status-clock" hidden></div>
+    <div class="status-text row">
+      <button class="btn btn-go" id="open-round" type="button">OPEN NEXT ROUND</button>
+      <button class="btn btn-stop" id="close-round" type="button">CLOSE ROUND NOW</button>
+      <button class="btn" id="add-time" type="button">+1 MINUTE</button>
+    </div>
+  </section>
+
+  <main class="admin-grid">
+    <section class="panel">
+      <h2>TEAMS</h2>
+      <form class="row" id="add-team">
+        <input type="text" id="team-name-input" maxlength="40" placeholder="New team name" aria-label="New team name">
+        <select id="team-character-input" aria-label="Character for the new team"></select>
+        <button class="btn btn-go" type="submit">ADD TEAM</button>
+      </form>
+      <p class="warn" id="error" role="alert"></p>
+      <table class="teams-table">
+        <thead>
+          <tr><th>PLAY</th><th>TEAM</th><th>CHARACTER</th><th>ONLINE</th><th>PROMPT</th><th>AGENT</th><th>ACTIONS</th></tr>
+        </thead>
+        <tbody id="teams"></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>AGENTS LIVE</h2>
+      <p>Every step each team's agent takes, as it happens.</p>
+      <div class="feed-grid" id="feeds"></div>
+    </section>
+
+    <section class="panel">
+      <h2>HELPER CHAT QR</h2>
+      <p>One code for everyone. Any kid can scan it to ask questions on their own phone. It gives no access to a team's prompt or code.</p>
+      <p id="chat-stats"></p>
+      <div class="row">
+        <button class="btn btn-go" id="chat-qr" type="button">SHOW QR</button>
+        <button class="btn" id="chat-copy" type="button">COPY LINK</button>
+        <button class="btn" id="chat-log" type="button">READ CHATS</button>
+        <button class="btn btn-warn" id="chat-regenerate" type="button">NEW LINK</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>MATCH</h2>
+      <p>Tick 2 to 4 teams in the table above, then start. The game runs on this machine.</p>
+      <div class="row">
+        <button class="btn btn-go" id="start-match" type="button">START MATCH</button>
+        <button class="btn btn-stop" id="stop-match" type="button">STOP MATCH</button>
+      </div>
+      <pre class="log" id="match-log"></pre>
+      <h3>RECENT MATCHES</h3>
+      <div id="matches"></div>
+    </section>
+
+    <section class="panel">
+      <h2>SETTINGS</h2>
+      <form id="settings" class="settings">
+        <label>Public URL (from the tunnel)<input type="text" name="public_url" placeholder="https://example.trycloudflare.com"></label>
+        <label>Prompt time (seconds)<input type="number" name="prompt_seconds" min="15" max="7200"></label>
+        <label>Agent time limit (seconds)<input type="number" name="agent_timeout_seconds" min="30" max="1800"></label>
+        <label>Match length (seconds)<input type="number" name="match_seconds" min="10" max="480"></label>
+        <label>Azure base URL<input type="text" name="azure_base_url" placeholder="https://your-resource.openai.azure.com"></label>
+        <label>Azure API key<input type="password" name="azure_api_key" id="azure-key" autocomplete="new-password"></label>
+        <label>Azure model name<input type="text" name="model"></label>
+        <label>Melee ISO path<input type="text" name="iso_path"></label>
+        <label class="check"><input type="checkbox" name="chat_enabled"> Helper chat on</label>
+        <label class="check"><input type="checkbox" name="record_replays"> Record replays</label>
+        <div class="row"><button class="btn btn-go" type="submit">SAVE SETTINGS</button><span id="settings-saved"></span></div>
+      </form>
+      <h3>AZURE CONNECTION</h3>
+      <p>Tries the values above, even before you save them: a plain answer, streaming, tool calls, reasoning and the safety filter.</p>
+      <div class="row">
+        <button class="btn" id="llm-test" type="button">TEST CONNECTION</button>
+        <button class="btn btn-warn" id="forget-key" type="button">FORGET KEY</button>
+      </div>
+      <div class="llm-results" id="llm-results" aria-live="polite"></div>
+      <h3>DANGER ZONE</h3>
+      <p>Clears prompts, bots, chats and matches. Teams, links and settings stay.</p>
+      <button class="btn btn-stop" id="reset" type="button">RESET EVENT</button>
+    </section>
+  </main>
+
+  <dialog id="qr-dialog">
+    <h2 id="qr-title"></h2>
+    <img class="qr-image" id="qr-image" alt="QR code for this team's link">
+    <p class="qr-link" id="qr-link"></p>
+    <button class="btn" data-close type="button">CLOSE</button>
+  </dialog>
+
+  <dialog id="character-dialog">
+    <h2 id="character-title"></h2>
+    <p>Each team needs a different character.</p>
+    <select id="character-select" aria-label="Character"></select>
+    <div class="row">
+      <button class="btn btn-go" id="character-save" type="button">SAVE</button>
+      <button class="btn" data-close type="button">CANCEL</button>
+    </div>
+  </dialog>
+
+  <dialog id="detail-dialog">
+    <h2 id="detail-title"></h2>
+    <div id="detail-body"></div>
+    <button class="btn" data-close type="button">CLOSE</button>
+  </dialog>
+
+  <script src="/static/common.js"></script>
+  <script src="/admin-static/admin.js"></script>
+</body>
+</html>

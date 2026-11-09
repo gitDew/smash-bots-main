@@ -2,29 +2,27 @@
 """Shared libmelee arena runner.
 
 The runner owns Dolphin, the Melee console, controllers, and menu navigation.
-Team bots are separate modules and provide Bot.get_character() and Bot.act().
+Team bots run inside their own Docker containers (see container_bot.py).
 """
 
 from __future__ import annotations
 
 import argparse
 import configparser
-import importlib.util
+import json
 import math
 import signal
 import sys
+import time
 from pathlib import Path
 import melee
 
+from container_bot import FRAME_BUDGET_SECONDS, ContainerBot
 from replay import NativeReplayRecorder, RecordingError
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_ISO = PROJECT_ROOT / "smash_bros_melee.iso"
-DEFAULT_P1_BOT = PROJECT_ROOT / "teams" / "team_a" / "bot.py"
-DEFAULT_P2_BOT = PROJECT_ROOT / "teams" / "team_b" / "bot.py"
-DEFAULT_P3_BOT = PROJECT_ROOT / "teams" / "team_c" / "bot.py"
-DEFAULT_P4_BOT = PROJECT_ROOT / "teams" / "team_d" / "bot.py"
 DEFAULT_DOLPHIN = (
     PROJECT_ROOT / ".dolphin" / "netplay-beta" / "Slippi_Dolphin.app"
     / "Contents" / "MacOS" / "Slippi_Dolphin"
@@ -176,36 +174,6 @@ def stop_dolphin(console: melee.Console) -> None:
     console.stop()
 
 
-def load_bot(bot_path: Path, port: int):
-    """Load one team's Bot class without putting team files in one namespace."""
-    bot_path = bot_path.expanduser().resolve()
-    if not bot_path.is_file():
-        raise FileNotFoundError(f"Bot file not found: {bot_path}")
-
-    # The unique module name allows all teams to use a file named bot.py.
-    module_name = f"team_bot_port_{port}"
-    spec = importlib.util.spec_from_file_location(module_name, bot_path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not load bot module: {bot_path}")
-
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    bot_class = getattr(module, "Bot", None)
-    if bot_class is None:
-        raise TypeError(f"{bot_path} must define a class named Bot")
-
-    bot = bot_class(port=port)
-    if not callable(getattr(bot, "get_character", None)):
-        raise TypeError(
-            f"Bot in {bot_path} must define "
-            "get_character() -> melee.Character"
-        )
-    if not callable(getattr(bot, "act", None)):
-        raise TypeError(f"Bot in {bot_path} must define act(gamestate, controller)")
-    return bot
-
-
 def is_selectable_character(character: object) -> bool:
     """Return whether libmelee can navigate to this character on the CSS."""
     if not isinstance(character, melee.Character):
@@ -224,44 +192,57 @@ def is_selectable_character(character: object) -> bool:
     return melee.to_internal(css_id) is character
 
 
-def get_bot_character(bot, port: int) -> melee.Character:
-    """Read and validate a bot's fixed character selection."""
-    character = bot.get_character()
-    if not is_selectable_character(character):
-        raise ValueError(
-            f"Bot on port {port} selected {character!r}, "
-            "which is not a selectable character"
-        )
-    return character
+def fighter(value: str) -> tuple[str, melee.Character]:
+    """Parse CONTAINER=CHARACTER. Bot code has no say in its character."""
+    container, _, name = value.partition("=")
+    character = melee.Character.__members__.get(name)
+    if not container or character is None or not is_selectable_character(character):
+        raise argparse.ArgumentTypeError(f"expected CONTAINER=CHARACTER, got {value!r}")
+    return container, character
+
+
+def dispatch_frame(bots, controllers, gamestate) -> None:
+    """Share this frame with every bot; they all answer within one deadline."""
+    active = {port: bot for port, bot in bots.items() if port in gamestate.players}
+    for bot in active.values():
+        bot.send(gamestate)
+    deadline = time.monotonic() + FRAME_BUDGET_SECONDS
+    for port, bot in active.items():
+        bot.apply(controllers[port], deadline)
+
+
+def match_result(gamestate, bots, time_limit_reached: bool) -> dict:
+    """Summarize a match for the event server; eliminated players may be absent."""
+    players = {}
+    if gamestate is not None:
+        for port in bots:
+            player = gamestate.players.get(port)
+            players[port] = {
+                "stock": int(player.stock) if player is not None else 0,
+                "percent": float(player.percent) if player is not None else 0.0,
+            }
+    ranked = sorted(
+        (port for port, player in players.items() if player["stock"] > 0),
+        key=lambda port: (-players[port]["stock"], players[port]["percent"]),
+    )
+    winner = ranked[0] if ranked else None
+    if len(ranked) > 1 and (
+        players[ranked[0]]["stock"], players[ranked[0]]["percent"]
+    ) == (players[ranked[1]]["stock"], players[ranked[1]]["percent"]):
+        winner = None
+    return {
+        "winner_port": winner,
+        "time_limit_reached": time_limit_reached,
+        "players": players,
+        "bots": {port: bot.report() for port, bot in bots.items()},
+    }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--players", type=int, choices=(2, 3, 4), default=4,
-        help="Number of players (default: 4)",
-    )
-    parser.add_argument(
-        "--p1",
-        type=Path,
-        default=DEFAULT_P1_BOT,
-        help="Bot file for player 1 (default: teams/team_a/bot.py)",
-    )
-    parser.add_argument(
-        "--p2",
-        type=Path,
-        default=DEFAULT_P2_BOT,
-        help="Bot file for player 2 (default: teams/team_b/bot.py)",
-    )
-    parser.add_argument(
-        "--p3",
-        type=Path,
-        help="Bot file for player 3 (default: teams/team_c/bot.py)",
-    )
-    parser.add_argument(
-        "--p4",
-        type=Path,
-        help="Bot file for player 4 (default: teams/team_d/bot.py)",
+        "fighters", nargs="+", metavar="CONTAINER=CHARACTER", type=fighter,
+        help="Two to four team containers and their characters, in player order",
     )
     parser.add_argument(
         "--iso",
@@ -299,33 +280,30 @@ def main() -> int:
         "--replay-dir", type=Path, default=DEFAULT_REPLAY_DIR,
         help="Directory for recorded MP4 files (default: ./replays in the arena directory)",
     )
+    parser.add_argument(
+        "--result-file", type=Path,
+        help="Write a JSON summary of the match to this file",
+    )
     args = parser.parse_args()
     if not math.isfinite(args.time_limit):
         parser.error("--time-limit must be a finite number")
-    if args.players < 3 and args.p3 is not None:
-        parser.error("--p3 requires at least 3 players")
-    if args.players < 4 and args.p4 is not None:
-        parser.error("--p4 requires 4 players")
-
-    player_paths = (
-        args.p1, args.p2,
-        args.p3 if args.p3 is not None else DEFAULT_P3_BOT,
-        args.p4 if args.p4 is not None else DEFAULT_P4_BOT,
-    )
-    bot_paths = dict(enumerate(player_paths[:args.players], start=1))
+    if not 2 <= len(args.fighters) <= 4:
+        parser.error("give 2 to 4 fighters")
+    if len({character for _, character in args.fighters}) != len(args.fighters):
+        parser.error("each bot needs a different character")
     iso_path = args.iso.expanduser().resolve()
     if not iso_path.is_file():
         print(f"ISO not found: {iso_path}", file=sys.stderr)
         return 2
 
-    # Load the team code and character choices before starting Dolphin. Each
-    # bot gets its own object and therefore its own persistent state. Character
-    # choices are fixed for the match and are not queried during gameplay.
-    bots = {port: load_bot(path, port=port) for port, path in bot_paths.items()}
-    characters = {
-        port: get_bot_character(bot, port)
-        for port, bot in bots.items()
+    # Start the bots before Dolphin. Each runs in its own container and keeps
+    # its own state. The host assigned the characters, so they are fixed here.
+    fighters = dict(enumerate(args.fighters, start=1))
+    bots = {
+        port: ContainerBot(container, port).start()
+        for port, (container, _) in fighters.items()
     }
+    characters = {port: character for port, (_, character) in fighters.items()}
     stage = melee.Stage.RANDOM_STAGE
 
     recorder = None
@@ -393,6 +371,7 @@ def main() -> int:
     participants_checked = False
     time_limit_reached = False
     frame_dump_checked = False
+    last_game_frame = None
 
     def stop(*_args) -> None:
         raise KeyboardInterrupt
@@ -403,8 +382,8 @@ def main() -> int:
     try:
         if recorder is not None:
             print(f"Recording to: {recorder.path}", flush=True)
-        for port, path in bot_paths.items():
-            print(f"Player {port} bot: {path.expanduser()}")
+        for port, bot in bots.items():
+            print(f"Player {port} bot: {bot.container}")
         print(f"Selected stage: {stage.name}")
         print(f"Starting Dolphin with {iso_path}")
         console.run(iso_path=str(iso_path))
@@ -439,6 +418,7 @@ def main() -> int:
                 melee.Menu.SUDDEN_DEATH,
             ):
                 match_started = True
+                last_game_frame = gamestate
                 if not participants_checked:
                     missing = set(bots) - set(gamestate.players)
                     if gamestate.frame < 0 and missing:
@@ -512,9 +492,7 @@ def main() -> int:
 
                 # All bots observe the same frame before the next step(). An
                 # eliminated player may no longer appear in the game state.
-                for port, bot in bots.items():
-                    if port in gamestate.players:
-                        bot.act(gamestate, controllers[port])
+                dispatch_frame(bots, controllers, gamestate)
             elif match_started:
                 # The live libmelee menu parser does not currently emit
                 # POSTGAME_SCORES. After the match, its first menu event is
@@ -546,6 +524,12 @@ def main() -> int:
     finally:
         # A second Ctrl-C must not interrupt Dolphin cleanup or video saving.
         signal.signal(signal.SIGINT, signal.SIG_IGN)
+        for bot in bots.values():
+            bot.close()
+        if args.result_file is not None and match_started:
+            args.result_file.write_text(
+                json.dumps(match_result(last_game_frame, bots, time_limit_reached))
+            )
         cleanup_error = None
         dolphin_stopped = False
         try:

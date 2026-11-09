@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Smash Bots Helper</title>
+  <link rel="stylesheet" href="/static/retro.css">
+</head>
+<body>
+  <header class="top">
+    <div class="logo"><div>SMASH<span>BOTS</span></div></div>
+    <div class="team-name">HELPER</div>
+  </header>
+
+  <div class="banner" id="connection" hidden>RECONNECTING...</div>
+
+  <main class="chat-page">
+    <section class="status" id="status" data-mood="wait" aria-live="polite">
+      <div class="status-label">
+        <svg id="lock-icon" viewBox="0 0 10 12" shape-rendering="crispEdges" hidden aria-hidden="true">
+          <rect x="2" y="0" width="6" height="2" fill="#e6dfcd"/>
+          <rect x="1" y="1" width="2" height="5" fill="#e6dfcd"/>
+          <rect x="7" y="1" width="2" height="5" fill="#e6dfcd"/>
+          <rect x="0" y="5" width="10" height="7" fill="#e6dfcd"/>
+          <rect x="4" y="7" width="2" height="3" fill="#7d3b2f"/>
+        </svg>
+        <span id="status-label">LOADING</span>
+      </div>
+      <div class="status-title" id="status-title">...</div>
+      <div class="status-clock" id="status-clock" hidden></div>
+      <div class="status-text" id="status-text"></div>
+    </section>
+
+    <section class="panel">
+      <h2>ASK THE HELPER</h2>
+      <p class="chat-note">Ask anything about what a bot can see and do. Only you see your questions. Got a great idea? Tell the teammate writing your prompt!</p>
+      <div class="chat-log" id="chat-log" aria-live="polite"></div>
+      <form class="chat-form" id="chat-form">
+        <input type="text" id="chat-input" maxlength="500" autocomplete="off" aria-label="Your question" placeholder="Can we see the other players?">
+        <button class="btn btn-go" id="chat-send" type="submit">ASK</button>
+      </form>
+      <div class="chat-foot" id="chat-foot"></div>
+    </section>
+
+    <section class="panel">
+      <details class="help-sheet">
+        <summary>WHAT CAN MY BOT SEE?</summary>
+        <div id="cheatsheet"></div>
+      </details>
+    </section>
+  </main>
+
+  <script src="/static/common.js"></script>
+  <script src="/static/chat.js"></script>
+</body>
+</html>

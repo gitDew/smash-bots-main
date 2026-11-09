@@ -1,44 +1,19 @@
 # Local libmelee documentation
 
-This directory contains an offline snapshot of the libmelee documentation used
-by the bots in this repository. It was fetched from the official sources on
-2026-09-01.
+An offline Markdown snapshot of the libmelee documentation, fetched from the
+official sources on 2026-09-01. The event rules in
+`server/chat_context/rules.md` take precedence over it.
 
-## Where to start
+The coding agent and the helper chat read these pages:
 
-- [`index.md`](index.md) — generated documentation overview, quick example, and
-  setup notes.
-- [`overview.md`](overview.md) — the libmelee project overview and API notes
-  from the upstream repository.
-- [`controller.md`](controller.md) — controller input methods and controller
-  state.
-- [`gamestate.md`](gamestate.md) — `GameState`, `PlayerState`, positions,
-  projectiles, and related state values.
-- [`enums.md`](enums.md) — buttons, characters, actions, stages, menus, and
-  projectile enums.
-- [`console.md`](console.md), [`menuhelper.md`](menuhelper.md),
-  [`stages.md`](stages.md), [`framedata.md`](framedata.md), and
-  [`logger.md`](logger.md) — the remaining API modules.
+- [`gamestate.md`](gamestate.md): `GameState`, `PlayerState`, positions and
+  projectiles.
+- [`controller.md`](controller.md): controller input methods and state.
+- [`enums.md`](enums.md): buttons, characters, actions, stages and menus.
+- [`framedata.md`](framedata.md): move timings.
+- [`stages.md`](stages.md): stage geometry.
 
-The `.md` files are agent-friendly text snapshots. The matching `.html` files
-are the complete rendered Read the Docs pages and retain the original links and
-formatting; open [`index.html`](index.html) in a browser for the full local
-reference. The `_sources/` directory contains the source RST files published by
-Read the Docs, and `_static/` contains the styles/scripts needed by the local
-HTML snapshot.
+[`console.md`](console.md) and [`menuhelper.md`](menuhelper.md) are for working
+on `runner.py`.
 
-## Important project-specific constraint
-
-The upstream overview includes information about online play. This project is
-an offline event: bots must run through the shared local runner and must not add
-or use online play. The repository's `AGENTS.md` and runner instructions take
-precedence over generic upstream examples.
-
-## Sources
-
-- Rendered API documentation: <https://libmelee.readthedocs.io/en/latest/>
-- Project overview: <https://github.com/vladfi1/libmelee/blob/master/README.md>
-- Installed package name: `melee` (the libmelee Python API)
-
-The HTML and Markdown copies are vendored for offline use and should be
-refreshed from those sources when the libmelee version changes.
+Source: <https://libmelee.readthedocs.io/en/latest/>
