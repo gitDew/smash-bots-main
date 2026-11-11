@@ -78,7 +78,8 @@
     <section class="panel">
       <h2>KAMPF</h2>
       <p id="match-stage"></p>
-      <div class="row">
+      <div class="row match-controls">
+        <label class="match-time">Maximale Kampf-Zeit (Minuten)<input type="number" id="match-minutes" value="5" min="0.5" max="8" step="0.5" required></label>
         <button class="btn btn-go" id="start-match" type="button">KAMPF STARTEN</button>
         <button class="btn" id="demo-match" type="button">DEMO: ALLE STEHEN STILL</button>
         <button class="btn btn-stop" id="stop-match" type="button">KAMPF STOPPEN</button>
@@ -89,11 +90,12 @@
     </section>
 
     <section class="panel">
-      <h2>RANGLISTE</h2>
-      <p class="scores-last" id="scores-last"></p>
-      <ol class="scores" id="scores-list"></ol>
-      <p class="round-note">Ein Sieg zählt, wenn ein Kampf innerhalb einer Runde von selbst endet. Gestoppte Kämpfe, Testkämpfe vor Runde 1 und Demos zählen nicht.</p>
-      <button class="btn" id="show-scores" type="button">RANGLISTE ANZEIGEN</button>
+      <h2>PUNKTE</h2>
+      <p>Die Spielleitung vergibt Punkte manuell. Kämpfe vergeben keine Punkte automatisch. Jedes Team sieht nur seine eigenen Punkte.</p>
+      <table class="points-table">
+        <thead><tr><th>TEAM</th><th>PUNKTE</th><th>AKTIONEN</th></tr></thead>
+        <tbody id="points-teams"></tbody>
+      </table>
     </section>
 
     <details class="panel help-sheet" id="settings-panel">
@@ -101,7 +103,6 @@
       <form id="settings" class="settings">
         <label>Öffentliche URL (vom Tunnel)<input type="text" name="public_url" placeholder="https://example.trycloudflare.com"></label>
         <label>KI-Zeitlimit (Sekunden)<input type="number" name="agent_timeout_seconds" min="30" max="1800"></label>
-        <label>Kampf-Zeitlimit (Sekunden, 0 = bis nur noch einer übrig ist)<input type="number" name="time_limit_seconds" min="0" max="480"></label>
         <label>Leben pro Spieler (1 bis 4)<input type="number" name="lives" min="1" max="4"></label>
         <label>Azure-Basis-URL<input type="text" name="azure_base_url" placeholder="https://your-resource.openai.azure.com"></label>
         <label>Azure-API-Schlüssel<input type="password" name="azure_api_key" id="azure-key" autocomplete="new-password"></label>
@@ -119,7 +120,7 @@
       </div>
       <div class="llm-results" id="llm-results" aria-live="polite"></div>
       <h3>ACHTUNG</h3>
-      <p>Löscht Prompts, Bots, Chats und Kämpfe. Teams, Links und Einstellungen bleiben erhalten.</p>
+      <p>Löscht Prompts, Bots, Chats und Kämpfe und setzt Punkte auf null. Teams, Links und Einstellungen bleiben erhalten.</p>
       <button class="btn btn-stop" id="reset" type="button">EVENT ZURÜCKSETZEN</button>
     </details>
   </main>
@@ -128,13 +129,6 @@
     <h2 id="qr-title"></h2>
     <img class="qr-image" id="qr-image" alt="QR-Code für den Zugangslink">
     <p class="qr-link" id="qr-link"></p>
-    <button class="btn" data-close type="button">SCHLIESSEN</button>
-  </dialog>
-
-  <dialog id="scores-dialog">
-    <h2>RANGLISTE</h2>
-    <p class="scores-last" id="scores-dialog-last"></p>
-    <ol class="scores scores-large" id="scores-dialog-list"></ol>
     <button class="btn" data-close type="button">SCHLIESSEN</button>
   </dialog>
 

@@ -813,36 +813,60 @@ class StageTests(EventCase):
         match = self.db.add_match(round_number, team_ids or self.both, "BATTLEFIELD")
         self.db.finish_match(match, status, {"winner_team": winner, "players": {}, "bots": {}}, "")
 
-    async def test_only_matches_that_end_by_themselves_in_a_round_count(self):
+    async def test_matches_never_award_points_automatically(self):
         self.add_match(0, "finished", self.team_id)           # test match before round 1
         self.add_match(1, "finished", self.other["id"])
         self.add_match(1, "stopped", self.team_id)            # the host stopped it
         self.add_match(2, "failed", self.team_id)
         self.add_match(2, "finished", self.other["id"])
         self.add_match(2, "finished", None)                   # a tie
-        table = self.event.scores()["table"]
-        self.assertEqual([(row["name"], row["wins"], row["played"]) for row in table],
-                         [("Lightning", 2, 3), ("Thunder", 0, 3)])
-        self.assertEqual(table[0]["character"], "Marth")
+        self.assertEqual([team["points"] for team in self.db.teams()], [0, 0])
 
-    async def test_kids_see_who_won_the_last_match(self):
-        self.assertEqual(self.event.team_state(self.team)["scores"]["last"], None)
+    async def test_teams_see_only_their_own_manual_points(self):
+        await self.event.adjust_points(self.team_id, 1)
+        await self.event.adjust_points(self.team_id, 1)
+        await self.event.adjust_points(self.other["id"], 1)
         self.add_match(1, "finished", self.team_id)
-        mine = self.event.team_state(self.team)["scores"]["last"]
-        self.assertEqual((mine["winner"], mine["won"], mine["stage"]), ("Thunder", True, "Schlachtfeld"))
-        theirs = self.event.team_state(self.db.team(self.other["id"]))["scores"]["last"]
-        self.assertFalse(theirs["won"])
-        self.assertEqual(self.event.chat_state(SESSION)["scores"]["last"]["winner"], "Thunder")
-        self.add_match(1, "stopped", self.other["id"])
-        self.assertEqual(self.event.team_state(self.team)["scores"]["last"]["winner"], "Thunder")
+        mine = self.event.team_state(self.team)
+        theirs = self.event.team_state(self.other)
+        self.assertEqual(mine["team"]["points"], 2)
+        self.assertEqual(theirs["team"]["points"], 1)
+        self.assertNotIn("Lightning", json.dumps(mine))
+        self.assertNotIn("scores", mine)
+        self.assertNotIn("points", json.dumps(self.event.chat_state(SESSION)))
+        self.assertNotIn("scores", self.event.chat_state(SESSION))
+        self.assertEqual([team["points"] for team in self.event.admin_state()["teams"]], [2, 1])
 
-    async def test_a_stopped_match_shows_no_winner_to_the_host(self):
+    async def test_matches_do_not_announce_a_winner_to_the_host(self):
         self.add_match(1, "stopped", self.team_id)
         self.add_match(1, "finished", self.other["id"])
-        winners = [match["winner"] for match in self.event.admin_state()["matches"]]
-        self.assertEqual(winners, ["Lightning", None])
+        self.assertTrue(all("winner" not in match for match in self.event.admin_state()["matches"]))
+
+    async def test_manual_points_can_be_corrected_but_not_negative(self):
+        await self.event.adjust_points(self.team_id, 1)
+        await self.event.adjust_points(self.team_id, -1)
+        await self.event.adjust_points(self.team_id, -1)
+        self.assertEqual(self.db.team(self.team_id)["points"], 0)
+        for delta in (0, 2, -2, True, 1.0):
+            with self.assertRaises(EventError):
+                await self.event.adjust_points(self.team_id, delta)
+        with self.assertRaises(EventError):
+            await self.event.adjust_points(9999, 1)
+
+    async def test_points_can_be_awarded_during_any_phase(self):
+        for phase in ("setup", "prompting", "coding", "ready", "fighting"):
+            self.db.set_event(phase, 1, None)
+            await self.event.adjust_points(self.team_id, 1)
+        self.assertEqual(self.db.team(self.team_id)["points"], 5)
+
+    async def test_reset_clears_points_but_keeps_team_links(self):
+        await self.event.adjust_points(self.team_id, 1)
+        await self.event.reset()
+        self.assertEqual(self.db.team(self.team_id)["points"], 0)
+        self.assertEqual(self.db.team(self.team_id)["token"], self.team["token"])
 
     async def test_a_match_with_no_time_limit_is_started_without_one(self):
+        self.db.update_settings({"time_limit_seconds": 0})
         await self.play_round()
         await self.event.start_match(self.both)
         await self.finish_background()
@@ -850,10 +874,59 @@ class StageTests(EventCase):
         self.assertEqual(command[command.index("--time-limit") + 1], "0")
         self.assertEqual(self.db.matches()[0]["status"], "finished")
 
+    async def test_fights_default_to_five_minutes(self):
+        await self.play_round()
+        await self.event.start_match(self.both)
+        await self.finish_background()
+        command = self.event.match_runner.commands[-1]
+        self.assertEqual(command[command.index("--time-limit") + 1], "300")
+
+    async def test_starting_each_match_saves_and_uses_its_fight_time(self):
+        await self.play_round()
+        for limit in (150, 420):
+            await self.event.start_match(self.both, time_limit_seconds=limit)
+            await self.finish_background()
+            command = self.event.match_runner.commands[-1]
+            self.assertEqual(command[command.index("--time-limit") + 1], str(limit))
+            self.assertEqual(self.event.admin_state()["settings"]["time_limit_seconds"], limit)
+        await self.event.start_match(self.both)
+        await self.finish_background()
+        command = self.event.match_runner.commands[-1]
+        self.assertEqual(command[command.index("--time-limit") + 1], "420")
+        self.assertEqual(self.db.settings()["time_limit_seconds"], 420)
+
+    async def test_invalid_fight_times_do_not_start_a_match(self):
+        for limit in (-1, 481):
+            with self.subTest(limit=limit), self.assertRaises(EventError):
+                await self.event.start_match(self.both, time_limit_seconds=limit)
+        self.assertEqual(self.db.event()["phase"], "setup")
+        self.assertEqual(self.db.settings()["time_limit_seconds"], 300)
+
     async def test_reset_forgets_the_stage(self):
         await self.play_round()
         await self.event.reset()
         self.assertIsNone(self.db.event()["stage"])
+
+
+class PointsStorageTests(unittest.TestCase):
+    def test_old_database_migrates_and_points_survive_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "event.sqlite"
+            conn = sqlite3.connect(path)
+            conn.execute("CREATE TABLE teams (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, "
+                         "token TEXT NOT NULL, created_at REAL NOT NULL, character TEXT)")
+            conn.execute("INSERT INTO teams VALUES (1, 'Thunder', 'old-token', 0, 'FOX')")
+            conn.commit()
+            conn.close()
+            db = Database(path)
+            self.assertEqual(db.team(1)["points"], 0)
+            self.assertEqual(db.team(1)["token"], "old-token")
+            db.adjust_points(1, 1)
+            db.conn.close()
+            db = Database(path)
+            self.assertEqual(db.team(1)["points"], 1)
+            self.assertEqual(db.add_team("Lightning", "MARTH")["points"], 0)
+            db.conn.close()
 
 
 class StageMapTests(unittest.TestCase):
@@ -878,6 +951,29 @@ class HttpTests(unittest.TestCase):
         self.db.add_version(self.team["id"], 0, "class Bot: pass", "Starter bot")
         self.teams = TestClient(create_team_app(self.event))
         self.admin = TestClient(create_admin_app(self.event, port=8001), base_url="http://127.0.0.1:8001")
+
+    def test_only_admin_can_change_points_and_values_are_validated(self):
+        path = f"/api/teams/{self.team['id']}/points"
+        headers = {"X-Smash-Admin": "1"}
+        self.assertEqual(self.teams.post(path, json={"delta": 1}, headers=headers).status_code, 404)
+        self.assertEqual(self.admin.post(path, json={"delta": 1}).status_code, 403)
+        self.assertEqual(self.admin.post(path, json={"delta": 1}, headers=headers).status_code, 200)
+        self.assertEqual(self.db.team(self.team["id"])["points"], 1)
+        for delta in (2, -2, True, 1.5, "1", None):
+            self.assertEqual(self.admin.post(path, json={"delta": delta}, headers=headers).status_code, 422)
+        self.assertEqual(self.admin.post(path, json={"delta": 0}, headers=headers).status_code, 409)
+        self.assertEqual(self.admin.post("/api/teams/9999/points", json={"delta": 1}, headers=headers).status_code, 409)
+
+    def test_points_updates_are_broadcast_to_team_and_admin(self):
+        with self.teams.websocket_connect(f"/ws/{self.team['token']}") as team_socket:
+            team_socket.receive_json()  # activity history
+            self.assertEqual(team_socket.receive_json()["team"]["points"], 0)
+            with self.admin.websocket_connect("ws://127.0.0.1:8001/ws", headers={"origin": "http://127.0.0.1:8001"}) as admin_socket:
+                admin_socket.receive_json()  # state
+                admin_socket.receive_json()  # activity history
+                self.admin.post(f"/api/teams/{self.team['id']}/points", json={"delta": 1}, headers={"X-Smash-Admin": "1"})
+                self.assertEqual(team_socket.receive_json()["team"]["points"], 1)
+                self.assertEqual(admin_socket.receive_json()["teams"][0]["points"], 1)
 
     def test_team_page_needs_a_real_token(self):
         self.assertEqual(self.teams.get(f"/t/{self.team['token']}").status_code, 200)
@@ -938,6 +1034,17 @@ class HttpTests(unittest.TestCase):
         opened = self.admin.post("/api/round/open", json={"seconds": 120, "stage": "DREAMLAND"}, headers=headers)
         self.assertEqual(opened.status_code, 200)
         self.assertEqual(self.db.event()["stage"], "DREAMLAND")
+
+    def test_match_fight_time_is_validated_and_passed_to_the_event(self):
+        headers = {"X-Smash-Admin": "1"}
+        body = {"team_ids": [1, 2], "stage": "DREAMLAND"}
+        for limit in (-1, 481):
+            response = self.admin.post("/api/match/start", json={**body, "time_limit_seconds": limit}, headers=headers)
+            self.assertEqual(response.status_code, 422)
+        with patch.object(self.event, "start_match") as start_match:
+            response = self.admin.post("/api/match/start", json={**body, "time_limit_seconds": 210}, headers=headers)
+            self.assertEqual(response.status_code, 200)
+            start_match.assert_awaited_once_with([1, 2], "DREAMLAND", demo=False, time_limit_seconds=210)
 
     def test_both_sites_serve_the_stage_maps(self):
         for client in (self.teams, self.admin):
@@ -1142,7 +1249,7 @@ class MigrationTests(unittest.TestCase):
             Database(path).update_settings({"match_seconds": 120})
             db = Database(path)
             self.assertNotIn("match_seconds", db.settings())
-            self.assertEqual(db.settings()["time_limit_seconds"], 0)
+            self.assertEqual(db.settings()["time_limit_seconds"], 300)
             db.conn.close()
 
 

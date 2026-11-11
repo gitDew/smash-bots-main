@@ -9,7 +9,7 @@ happened, so a page that is out of date cannot get around a closed round.
 from __future__ import annotations
 
 import asyncio
-from collections import Counter, deque
+from collections import deque
 import logging
 from pathlib import Path
 import time
@@ -32,6 +32,7 @@ logger = logging.getLogger("smash.event")
 MAX_PROMPT_CHARS = 2000
 MIN_PROMPT_SECONDS, MAX_PROMPT_SECONDS = 15, 7200
 MAX_TEAMS_PER_MATCH = 4
+MAX_FIGHT_SECONDS = 480
 TICK_SECONDS = 0.25
 MAX_LOG_LINES = 300
 STARTER_BOT = Path(__file__).with_name("starter_bot.py")
@@ -300,6 +301,13 @@ class Event:
         self.db.rename_team(team_id, name)
         await self.broadcast()
 
+    async def adjust_points(self, team_id: int, delta: int) -> None:
+        self._require_team(team_id)
+        if type(delta) is not int or delta not in (-1, 1):
+            raise EventError("Punkte können nur um einen Punkt erhöht oder verringert werden.")
+        self.db.adjust_points(team_id, delta)
+        await self.broadcast()
+
     async def delete_team(self, team_id: int) -> None:
         self._require_idle()
         self._require_team(team_id)
@@ -341,7 +349,8 @@ class Event:
 
     # Matches
 
-    async def start_match(self, team_ids: list[int], stage: str | None = None, *, demo: bool = False) -> None:
+    async def start_match(self, team_ids: list[int], stage: str | None = None, *, demo: bool = False,
+                          time_limit_seconds: int | None = None) -> None:
         """Start a match with the teams' bots, or a demo with their characters and no bots.
 
         A match is played on its round's stage. The stage given here is only
@@ -359,6 +368,10 @@ class Event:
             stage = self._require_stage(next((choice for choice in choices if choice), DEFAULT_STAGE))
             if not Path(self.db.settings()["iso_path"]).expanduser().is_file():
                 raise EventError("Die Melee-ISO wurde nicht gefunden. Prüfe den Pfad in den Einstellungen.")
+            if time_limit_seconds is not None:
+                if not 0 <= time_limit_seconds <= MAX_FIGHT_SECONDS:
+                    raise EventError(f"Die Kampf-Zeit muss zwischen 0 und {MAX_FIGHT_SECONDS // 60} Minuten liegen.")
+                self.db.update_settings({"time_limit_seconds": time_limit_seconds})
             self.demo_match = demo
             self.db.set_event("fighting", event["round"], None)
             self.spawn(self._run_match(event["round"], team_ids, stage, demo))
@@ -414,42 +427,6 @@ class Event:
                 self.db.set_event("ready" if round_number else "setup", round_number, None)
             await self.broadcast()
 
-    # Scores
-
-    def scores(self, team_id: int | None = None) -> dict:
-        """Wins from matches in a real round that ended by themselves.
-
-        A match the host stops counts for nobody, and demos are never saved.
-        """
-        teams = {team["id"]: team for team in self.db.teams()}
-        matches = self.db.finished_matches()
-        wins, played = Counter(), Counter()
-        for match in matches:
-            played.update(match["team_ids"])
-            winner = (match["result"] or {}).get("winner_team")
-            if winner is not None:
-                wins[winner] += 1
-        table = sorted(
-            (
-                {"name": team["name"], "character": CHARACTERS.get(team["character"]),
-                 "wins": wins[number], "played": played[number]}
-                for number, team in teams.items()
-            ),
-            key=lambda row: (-row["wins"], row["name"].lower()),
-        )
-        last = None
-        if matches:
-            match = matches[-1]
-            winner = (match["result"] or {}).get("winner_team")
-            last = {
-                "round": match["round"],
-                "stage": STAGES.get(match["stage"], {}).get("name"),
-                "teams": [teams[number]["name"] for number in match["team_ids"] if number in teams],
-                "winner": teams[winner]["name"] if winner in teams else None,
-                "won": team_id is not None and winner == team_id,
-            }
-        return {"table": table, "last": last}
-
     def stop_match(self) -> None:
         if not self.match_runner.stop():
             raise EventError("Es läuft kein Kampf.")
@@ -482,7 +459,6 @@ class Event:
             "type": "state", "phase": event["phase"], "round": event["round"],
             "remaining": self._remaining(event), "prompt_open": self.prompt_open(event),
             "stage": stage_info(event["stage"]), "demo": self._demo_running(event),
-            "scores": self.scores(),
             "chat": self.chat.status(session, event),
         }
 
@@ -512,14 +488,14 @@ class Event:
         version = self.db.latest_version(team["id"])
         return {
             "type": "state",
-            "team": {"name": team["name"], "character": CHARACTERS.get(team["character"])},
+            "team": {"name": team["name"], "character": CHARACTERS.get(team["character"]),
+                     "points": self._require_team(team["id"])["points"]},
             "phase": event["phase"],
             "round": event["round"],
             "remaining": self._remaining(event),
             "prompt_open": self.prompt_open(event),
             "stage": stage_info(event["stage"]),
             "demo": self._demo_running(event),
-            "scores": self.scores(team["id"]),
             "prompt": self.db.prompt(team["id"], event["round"]),
             "max_prompt_chars": MAX_PROMPT_CHARS,
             "agent": None if run is None else {
@@ -556,6 +532,7 @@ class Event:
             version = self.db.latest_version(team["id"])
             teams.append({
                 "id": team["id"], "name": team["name"], "character": team["character"],
+                "points": team["points"],
                 "link": self.team_link(team, settings),
                 "prompt": self.db.prompt(team["id"], event["round"]),
                 "online": len(self.hub.teams[team["id"]]),
@@ -568,20 +545,16 @@ class Event:
             })
         matches = []
         for match in self.db.matches(limit=8):
-            winner = (match["result"] or {}).get("winner_team")
             matches.append({
                 "id": match["id"], "round": match["round"], "status": match["status"],
                 "stage": STAGES.get(match["stage"], {}).get("name"),
                 "teams": [names.get(team_id, "?") for team_id in match["team_ids"]],
-                # A stopped match still has a leader, but nobody won it.
-                "winner": names.get(winner) if match["status"] == "finished" else None,
             })
         return {
             "type": "state", "phase": event["phase"], "round": event["round"],
             "remaining": self._remaining(event), "teams": teams,
             "stage": event["stage"], "stages": {stage: stage_info(stage) for stage in STAGES},
             "demo": self._demo_running(event),
-            "scores": self.scores(),
             # The key is write-only: the admin page is only ever told if one is saved.
             "settings": {key: value for key, value in settings.items() if key != "azure_api_key"},
             "characters": CHARACTERS,

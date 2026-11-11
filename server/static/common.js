@@ -36,28 +36,6 @@ function renderStage(stage) {
   $("stage-about").textContent = stage.about;
 }
 
-function lastMatchText(last) {
-  const where = `Runde ${last.round}${last.stage ? ` auf ${last.stage}` : ""}`;
-  return last.winner ? `Letzter Kampf, ${where}: ${last.winner} hat gewonnen!` : `Letzter Kampf, ${where}: niemand hat gewonnen.`;
-}
-
-// Wins so far. Pages for the kids hide it until a match has counted.
-function renderScores(scores) {
-  const played = scores.table.some((row) => row.played > 0);
-  if ($("scores-card")) $("scores-card").hidden = !played;
-  $("scores-last").textContent = scores.last ? lastMatchText(scores.last) : "Noch kein Kampf wurde gewertet.";
-  $("scores-list").replaceChildren(...(played ? scores.table : []).map((row) => {
-    const item = document.createElement("li");
-    const name = document.createElement("b");
-    name.textContent = row.name;
-    const character = row.character ? ` (${row.character})` : "";
-    const wins = `${row.wins} ${row.wins === 1 ? "Sieg" : "Siege"}`;
-    const matches = `${row.played} ${row.played === 1 ? "Kampf" : "Kämpfen"}`;
-    item.append(name, `${character}: ${wins} in ${matches}`);
-    return item;
-  }));
-}
-
 function inlineMarkdown(target, text) {
   text.split(/(`[^`]+`|\*\*[^*]+\*\*)/).forEach((part) => {
     if (part.startsWith("`")) {

@@ -186,6 +186,33 @@ def configure_match_stocks(console: melee.Console, lives: int) -> None:
     config_path.write_text(config)
 
 
+def configure_match_time(console: melee.Console, time_limit: float) -> None:
+    """Set the actual stock-match clock, including half-minute admin choices."""
+    if time_limit <= 0:
+        return
+    seconds = math.ceil(time_limit)
+    if seconds > 0xFFFFFFFF:
+        raise ValueError("The match time must fit in Melee's 32-bit timer")
+    config_path = Path(console.dolphin_home_path) / "GameSettings" / "GALE01r2.ini"
+    config = config_path.read_text()
+    config = config.replace(
+        "[Gecko_Enabled]\n", "[Gecko_Enabled]\n$Event: Match Clock\n", 1,
+    )
+    # NTSC 1.02: GameRules.stock_time_limit at 0x803D4A50 is in whole
+    # minutes. Override Slippi's eight-minute default for the rules menu.
+    minutes = min(99, math.ceil(seconds / 60))
+    # gm_80167BC8 normally loads that byte at 0x80167C94 and multiplies it
+    # by 60 at 0x80167C98. Load our exact seconds instead (lis r0; ori r0),
+    # so 0.5 and 1.5 minutes also start at 0:30 and 1:30, not rounded up.
+    # This changes only initialization, never the running countdown.
+    config += (
+        f"\n$Event: Match Clock\n003D4A50 {minutes:08X}\n"
+        f"04167C94 {0x3C000000 | (seconds >> 16):08X}\n"
+        f"04167C98 {0x60000000 | (seconds & 0xFFFF):08X}\n"
+    )
+    config_path.write_text(config)
+
+
 def stop_dolphin(console: melee.Console) -> None:
     """Stop libmelee safely even if its connection worker never started."""
     worker = console._slippstream._worker
@@ -361,7 +388,7 @@ def main() -> int:
         type=float,
         default=DEFAULT_TIME_LIMIT_SECONDS,
         help=(
-            "Stop after this many in-game seconds have elapsed; the leader "
+            "Set Melee's clock and stop after this many in-game seconds; the leader "
             "wins. The default, 0, plays until only one player is left or "
             "Melee's 8:00 clock runs out."
         ),
@@ -388,6 +415,8 @@ def main() -> int:
     args = parser.parse_args()
     if not math.isfinite(args.time_limit):
         parser.error("--time-limit must be a finite number")
+    if args.time_limit > 0xFFFFFFFF:
+        parser.error("--time-limit must fit in Melee's 32-bit timer")
     if args.lives < 0:
         parser.error("--lives cannot be negative")
     if not 2 <= len(args.fighters) <= 4:
@@ -434,6 +463,7 @@ def main() -> int:
             console, legacy_macos_fallback=sys.platform == "darwin" and args.gfx_backend is None,
         )
         configure_match_stocks(console, args.lives)
+        configure_match_time(console, args.time_limit)
 
         controllers = {
             port: melee.Controller(
@@ -524,6 +554,13 @@ def main() -> int:
                 melee.Menu.IN_GAME,
                 melee.Menu.SUDDEN_DEATH,
             ):
+                if gamestate.menu_state == melee.Menu.SUDDEN_DEATH and time_limit_frames is not None and match_started:
+                    # Melee can enter sudden death at 0:00 before Slippi sends
+                    # the cutoff frame. A maximum fight time must not start an
+                    # extra fight; keep the final normal-game snapshot.
+                    time_limit_reached = True
+                    print("Zeitlimit erreicht: keine Verlängerung durch Sudden Death.")
+                    break
                 match_started = True
                 last_game_frame = gamestate
                 if not participants_checked:
@@ -579,8 +616,7 @@ def main() -> int:
                 # There is no HUD-timer field in libmelee's GameState.  Use
                 # the Slippi in-game frame index instead; unlike a wall-clock
                 # timeout, this does not count menu time or slow Dolphin time.
-                # Do not apply the limit during sudden death: that means the
-                # normal game has already reached its own time limit.
+                # Sudden death after this clock expires is handled above.
                 if (
                     gamestate.menu_state == melee.Menu.IN_GAME
                     and end_frame is None
@@ -589,7 +625,7 @@ def main() -> int:
                 ):
                     time_limit_reached = True
                     winner = winner_at_time_limit(gamestate, [port for port in bots if port not in out])
-                    remaining = format_clock(time_left_seconds(gamestate.frame))
+                    remaining = format_clock(time_left_seconds(gamestate.frame, math.ceil(args.time_limit)))
                     if any(port not in gamestate.players for port in bots):
                         print(
                             "Zeitlimit erreicht, aber der Sieger konnte nicht "
@@ -631,7 +667,9 @@ def main() -> int:
                 # normally MAIN_MENU or STAGE_SELECT. Any transition out of
                 # gameplay after we have seen IN_GAME means this round is over.
                 # Stop before MenuHelper can press START or select another map.
-                winner = match_result(last_game_frame, bots, False, out)["winner_port"]
+                if time_limit_frames is not None and last_game_frame.frame >= time_limit_frames - 1:
+                    time_limit_reached = True
+                winner = match_result(last_game_frame, bots, time_limit_reached, out)["winner_port"]
                 print(
                     "Kampf beendet: "
                     + (f"Spieler {winner} gewinnt" if winner is not None else "kein Sieger")

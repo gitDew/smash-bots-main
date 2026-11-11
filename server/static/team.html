@@ -24,7 +24,10 @@
       </svg>
       <div>SMASH<span>BOTS</span></div>
     </div>
-    <div class="team-name" id="team-name"></div>
+    <div class="team-identity">
+      <span class="team-score" id="team-points" aria-live="polite">score:0</span>
+      <span class="team-name" id="team-name"></span>
+    </div>
   </header>
 
   <div class="banner" id="connection" hidden>VERBINDUNG WIRD WIEDERHERGESTELLT...</div>
@@ -96,12 +99,6 @@
         </div>
       </div>
       <p id="code-wait" hidden>Dein Code erscheint hier, sobald die KI fertig ist.</p>
-    </section>
-
-    <section class="panel scores-panel" id="scores-card" hidden>
-      <h2>RANGLISTE</h2>
-      <p class="scores-last" id="scores-last"></p>
-      <ol class="scores" id="scores-list"></ol>
     </section>
 
   </main>

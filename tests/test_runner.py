@@ -135,6 +135,33 @@ class MenuTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def test_melee_clock_uses_exact_requested_seconds_not_slippis_eight_minutes(self):
+        source = Path(melee.__file__).parent / "GALE01r2.ini"
+        for seconds in (30, 60, 90, 300, 480):
+            with self.subTest(seconds=seconds), tempfile.TemporaryDirectory() as directory:
+                config_path = Path(directory) / "GameSettings" / "GALE01r2.ini"
+                config_path.parent.mkdir()
+                config_path.write_text(source.read_text().format(extra_codes=""))
+                console = Mock(dolphin_home_path=directory)
+                runner.configure_match_stocks(console, 1)
+                runner.configure_match_time(console, seconds)
+                config = config_path.read_text()
+                self.assertIn("[Gecko_Enabled]\n$Event: Match Clock\n", config)
+                self.assertIn(f"003D4A50 {(seconds + 59) // 60:08X}", config)
+                self.assertIn("04167C94 3C000000", config)
+                self.assertIn(f"04167C98 {0x60000000 | seconds:08X}", config)
+                self.assertIn("043D4A4C 01000A00", config)
+                self.assertIn("$Optional: Extract Menu Info", config)
+
+    def test_no_time_limit_keeps_the_original_melee_clock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = Path(directory) / "GameSettings" / "GALE01r2.ini"
+            config_path.parent.mkdir()
+            original = "[Gecko_Enabled]\n[Gecko]\n"
+            config_path.write_text(original)
+            runner.configure_match_time(Mock(dolphin_home_path=directory), 0)
+            self.assertEqual(config_path.read_text(), original)
+
     def test_melee_starts_with_the_requested_stock_count(self):
         source = Path(melee.__file__).parent / "GALE01r2.ini"
         for lives, expected in ((1, "01000A00"), (3, "03000A00"), (0, "04000A00")):
@@ -195,7 +222,7 @@ class RunnerTests(unittest.TestCase):
         incomplete_countdown=False, absent_later=None, interrupted=False, dolphin_closed=False,
         recording_error=None, frame_error=None, stop_error=None, no_record=False,
         gfx_backend=None, idle_ports=(), stage=None, game_stage=melee.Stage.FINAL_DESTINATION,
-        last_one_standing=None, lives=None, game_frames=None,
+        last_one_standing=None, lives=None, game_frames=None, time_limit=None,
     ):
         with tempfile.TemporaryDirectory() as directory:
             iso = Path(directory) / "game.iso"
@@ -203,6 +230,8 @@ class RunnerTests(unittest.TestCase):
             args = ["runner.py", "--iso", str(iso)]
             if last_one_standing is None and game_frames is None:
                 args.extend(("--time-limit", "1"))
+            if time_limit is not None:
+                args.extend(("--time-limit", str(time_limit)))
             if lives is not None:
                 args.extend(("--lives", str(lives)))
             args.extend(
@@ -296,6 +325,7 @@ class RunnerTests(unittest.TestCase):
                 patch.object(runner.melee, "MenuHelper", return_value=menu_helper),
                 patch.object(runner, "configure_render_to_main"),
                 patch.object(runner, "configure_match_stocks") as configure_stocks,
+                patch.object(runner, "configure_match_time") as configure_time,
                 patch.object(runner.NativeReplayRecorder, "start", return_value=recorder) as start_recording,
                 patch.object(runner, "ContainerBot", side_effect=make_bot),
                 patch.object(runner.signal, "signal"),
@@ -306,6 +336,9 @@ class RunnerTests(unittest.TestCase):
 
             self.assertEqual(set(controllers), set(range(1, count + 1)))
             configure_stocks.assert_called_once_with(console, lives if lives is not None else 1)
+            configure_time.assert_called_once_with(console, time_limit if time_limit is not None else (
+                1 if last_one_standing is None and game_frames is None else 0
+            ))
             self.assertEqual(
                 console.setup_dolphin_controller.call_args_list,
                 [call(port, melee.ControllerType.UNPLUGGED) for port in range(count + 1, 5)],
@@ -332,6 +365,28 @@ class RunnerTests(unittest.TestCase):
             for controller in controllers.values():
                 controller.disconnect.assert_called_once()
             return result, bots, controllers, output.getvalue(), errors.getvalue()
+
+    def test_native_timeout_does_not_extend_the_fight_into_sudden_death(self):
+        participants = {port: player(CHARACTERS[port - 1], stock=port) for port in (1, 2)}
+        frames = [
+            melee.GameState(menu_state=melee.Menu.IN_GAME, frame=3599, players=participants),
+            melee.GameState(menu_state=melee.Menu.SUDDEN_DEATH, frame=-120, players=participants),
+        ]
+        result, _, _, output, _ = self.run_mocked_match(2, game_frames=frames, time_limit=60)
+        self.assertEqual(result, 0)
+        self.assertIn("keine Verlängerung durch Sudden Death", output)
+        self.assertIn("Arena nach dem eingestellten Zeitlimit gestoppt", output)
+
+    def test_native_timeout_is_recognized_if_melee_leaves_before_the_cutoff_frame(self):
+        participants = {port: player(CHARACTERS[port - 1], stock=port) for port in (1, 2)}
+        frames = [
+            melee.GameState(menu_state=melee.Menu.IN_GAME, frame=3599, players=participants),
+            melee.GameState(menu_state=melee.Menu.MAIN_MENU),
+        ]
+        result, _, _, output, _ = self.run_mocked_match(2, game_frames=frames, time_limit=60)
+        self.assertEqual(result, 0)
+        self.assertIn("Spieler 2 gewinnt", output)
+        self.assertIn("Arena nach dem eingestellten Zeitlimit gestoppt", output)
 
     def test_two_three_and_four_player_matches(self):
         for count in (2, 3, 4):

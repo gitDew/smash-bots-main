@@ -16,8 +16,8 @@ DATA_DIR = ROOT / "data"
 DEFAULT_SETTINGS = {
     "prompt_seconds": 300,
     "agent_timeout_seconds": 240,
-    # 0 plays until one player is left.
-    "time_limit_seconds": 0,
+    # Five minutes by default; 0 plays until one player is left.
+    "time_limit_seconds": 300,
     # Stocks a player may lose before they are out. One keeps matches short.
     "lives": 1,
     "azure_base_url": os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS teams (
     name TEXT NOT NULL UNIQUE COLLATE NOCASE,
     token TEXT NOT NULL UNIQUE,
     created_at REAL NOT NULL,
-    character TEXT
+    character TEXT,
+    points INTEGER NOT NULL DEFAULT 0 CHECK (points >= 0)
 );
 CREATE TABLE IF NOT EXISTS prompts (
     team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
@@ -95,6 +96,7 @@ class Database:
         self.conn.executescript(SCHEMA)
         # Teams created before characters existed have none until the host picks one.
         self._add_missing_column("teams", "character")
+        self._add_missing_column("teams", "points", "INTEGER NOT NULL DEFAULT 0 CHECK (points >= 0)")
         # Rounds and matches from before stages were picked have none.
         self._add_missing_column("event", "stage")
         self._add_missing_column("matches", "stage")
@@ -110,9 +112,9 @@ class Database:
             (json.dumps(str(uuid.uuid4())),),
         )
 
-    def _add_missing_column(self, table: str, column: str) -> None:
+    def _add_missing_column(self, table: str, column: str, definition: str = "TEXT") -> None:
         if column not in {row["name"] for row in self.conn.execute(f"PRAGMA table_info({table})")}:
-            self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+            self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     def _one(self, sql: str, *args) -> dict | None:
         row = self.conn.execute(sql, args).fetchone()
@@ -171,6 +173,9 @@ class Database:
 
     def set_character(self, team_id: int, character: str) -> None:
         self.conn.execute("UPDATE teams SET character = ? WHERE id = ?", (character, team_id))
+
+    def adjust_points(self, team_id: int, delta: int) -> None:
+        self.conn.execute("UPDATE teams SET points = MAX(0, points + ?) WHERE id = ?", (delta, team_id))
 
     def regenerate_token(self, team_id: int) -> None:
         self.conn.execute("UPDATE teams SET token = ? WHERE id = ?", (str(uuid.uuid4()), team_id))
@@ -334,14 +339,6 @@ class Database:
             row["result"] = json.loads(row["result"]) if row["result"] else None
         return rows
 
-    def finished_matches(self) -> list[dict]:
-        """Matches in a real round that ended by themselves, oldest first."""
-        rows = self._all("SELECT * FROM matches WHERE status = 'finished' AND round > 0 ORDER BY id")
-        for row in rows:
-            row["team_ids"] = json.loads(row["team_ids"])
-            row["result"] = json.loads(row["result"]) if row["result"] else None
-        return rows
-
     def last_bot_report(self, team_id: int) -> dict | None:
         """How this team's bot behaved in the most recent match it played."""
         for match in self.matches(limit=50):
@@ -354,5 +351,6 @@ class Database:
         for table in ("prompts", "start_choices", "agent_runs", "agent_activity", "bot_versions",
                       "chat_messages", "matches"):
             self.conn.execute(f"DELETE FROM {table}")
+        self.conn.execute("UPDATE teams SET points = 0")
         self.set_event("setup", 0, None)
         self.set_stage(None)

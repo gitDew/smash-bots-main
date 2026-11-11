@@ -54,12 +54,16 @@
 2. Teams write their prompts. Use **+1 minute** or **Close round now** if needed.
 3. When the time is up, the agents code. **Agents live** in the admin page shows
    every step in detail, and each team page shows a simple version.
-4. Tick 2 to 4 teams and press **Start match**. It is played on the round's
-   stage and lasts until only one player is left; with **Lives per player** at
-   1, a player is out after their first knockout. The winner goes on the
-   **Scoreboard**; **Show scoreboard** puts it on screen. **Stop match** ends a
-   match with no winner. For a safety limit, set **Time limit** in the settings;
-   when it runs out, the leader wins.
+4. Tick 2 to 4 teams, set the maximum fight time in minutes next to **Start
+   match** (default: 5 minutes), and press it. It is played on the round's
+   stage and lasts until only one player is left or the selected fight time limit
+   is reached; with **Lives per player** at
+   1, a player is out after their first knockout. **Stop match** ends a match
+   early.
+5. Award points according to your round's rules using **+1 point** in the admin
+   **Points** table; **−1 point** corrects mistakes. Matches never award points
+   automatically. Teams see only their own total, not the full table. Points
+   survive server restarts; **Reset event** sets them back to zero.
 
 If an agent fails, the team's previous bot still fights. **Retry agent** runs it
 again, and **Details** lets you roll a team back to any earlier version.

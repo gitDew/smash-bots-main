@@ -187,12 +187,26 @@ function updateButtons() {
   const between = ["setup", "ready"].includes(phase);
   // While a round runs, the form keeps showing that round's choices.
   ["open-round", "round-minutes", "round-stage"].forEach((id) => { $(id).disabled = !between; });
+  $("match-minutes").disabled = !between;
   $("close-round").disabled = phase !== "prompting";
   $("add-time").disabled = phase !== "prompting";
   $("start-match").disabled = !between || selected.size < 2 || selected.size > 4;
   $("demo-match").disabled = $("start-match").disabled;
   $("stop-match").disabled = phase !== "fighting";
   $("reset").disabled = ["coding", "fighting"].includes(phase);
+}
+
+function pointsRow(team) {
+  const award = button("+1 PUNKT", "btn-go", () => api("POST", `/api/teams/${team.id}/points`, { delta: 1 }));
+  award.ariaLabel = `Einen Punkt an ${team.name} vergeben`;
+  const subtract = button("−1 PUNKT", "", () => api("POST", `/api/teams/${team.id}/points`, { delta: -1 }));
+  subtract.ariaLabel = `Einen Punkt von ${team.name} abziehen`;
+  subtract.disabled = team.points === 0;
+  return el("tr", {},
+    el("td", { textContent: team.name }),
+    el("td", { textContent: String(team.points), ariaLive: "polite" }),
+    el("td", { className: "row" }, award, subtract),
+  );
 }
 
 function fillRoundForm(s) {
@@ -254,10 +268,10 @@ function render(s) {
   $("match-log").textContent = s.match_log.length ? `${s.match_log.join("\n")}\n` : "";
   $("match-log").scrollTop = $("match-log").scrollHeight;
   $("matches").replaceChildren(...s.matches.map((match) => el("p", {
-    textContent: `Runde ${match.round}${match.stage ? ` auf ${match.stage}` : ""}: ${match.teams.join(" gegen ")}. ${STATUS_LABELS[match.status] || match.status}${match.winner ? `, Sieger: ${match.winner}` : ""}`,
+    textContent: `Runde ${match.round}${match.stage ? ` auf ${match.stage}` : ""}: ${match.teams.join(" gegen ")}. ${STATUS_LABELS[match.status] || match.status}`,
   })));
   $("match-stage").textContent = matchStageText(s);
-  renderScores(s.scores);
+  $("points-teams").replaceChildren(...s.teams.map(pointsRow));
 
   $("chat-stats").textContent = `${s.chat.phones} ${s.chat.phones === 1 ? "Handy verbunden" : "Handys verbunden"}. ${s.chat.questions} ${s.chat.questions === 1 ? "Frage" : "Fragen"} in dieser Runde beantwortet.`;
   if (!settingsFilled) fillSettings(s.settings);
@@ -266,6 +280,8 @@ function render(s) {
 }
 
 function fillSettings(settings) {
+  $("match-minutes").value = settings.time_limit_seconds > 0
+    ? Math.max(0.5, Math.round(settings.time_limit_seconds / 30) / 2) : 5;
   const form = $("settings");
   for (const [key, value] of Object.entries(settings)) {
     const input = form.elements[key];
@@ -384,15 +400,15 @@ $("round-form").addEventListener("submit", (event) => {
 });
 $("round-stage").onchange = showPickedStage;
 $("show-stage").onclick = showStageDialog;
-$("show-scores").onclick = () => {
-  $("scores-dialog-last").textContent = $("scores-last").textContent;
-  $("scores-dialog-list").replaceChildren(...[...$("scores-list").children].map((item) => item.cloneNode(true)));
-  $("scores-dialog").showModal();
-};
 $("close-round").onclick = () => api("POST", "/api/round/close");
 $("add-time").onclick = () => api("POST", "/api/round/add-time", { seconds: 60 });
-$("start-match").onclick = () => api("POST", "/api/match/start", { team_ids: [...selected], stage: $("round-stage").value });
-$("demo-match").onclick = () => api("POST", "/api/match/start", { team_ids: [...selected], stage: $("round-stage").value, demo: true });
+function startMatch(demo = false) {
+  if (!$("match-minutes").reportValidity()) return;
+  const time_limit_seconds = Math.round(Number($("match-minutes").value) * 60);
+  api("POST", "/api/match/start", { team_ids: [...selected], stage: $("round-stage").value, demo, time_limit_seconds });
+}
+$("start-match").onclick = () => startMatch();
+$("demo-match").onclick = () => startMatch(true);
 $("stop-match").onclick = () => api("POST", "/api/match/stop");
 $("chat-qr").onclick = () => showQr("HILFE-CHAT", "/api/chat/qr", state.chat.link);
 $("chat-copy").onclick = () => navigator.clipboard.writeText(state.chat.link);
@@ -401,7 +417,7 @@ $("chat-regenerate").onclick = () => {
   if (window.confirm("Den Hilfe-Chat-Link ersetzen? Der alte QR-Code funktioniert danach nicht mehr.")) api("POST", "/api/chat/regenerate");
 };
 $("reset").onclick = () => {
-  if (window.confirm("Das ganze Event zurücksetzen? Prompts, Bots, Chats und Kämpfe werden gelöscht.")) api("POST", "/api/reset");
+  if (window.confirm("Das ganze Event zurücksetzen? Prompts, Bots, Chats und Kämpfe werden gelöscht und Punkte auf null gesetzt.")) api("POST", "/api/reset");
 };
 
 connect();

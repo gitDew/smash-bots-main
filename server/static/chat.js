@@ -72,14 +72,8 @@ function statusText(s) {
     case "fighting":
       if (s.demo) return { mood: "fight", label: "DEMO", title: "SCHAU ZU!", text: "Niemand hat den Bots bisher gesagt, was sie tun sollen. Deshalb stehen sie nur da. Was soll deiner tun?" };
       return { mood: "fight", label: s.round ? `RUNDE ${s.round} GESCHLOSSEN` : "TESTKAMPF", title: "KAMPF!", text: "Schau auf den grossen Bildschirm! Du kannst weiterhin Fragen für die nächste Runde stellen." };
-    default: {
-      const last = s.scores.last;
-      if (s.phase === "ready" && last && last.round === s.round) {
-        const title = last.winner ? `${last.winner.toUpperCase()} HAT GEWONNEN!` : "NIEMAND HAT GEWONNEN";
-        return { mood: "fight", label: `KAMPF IN RUNDE ${s.round}`, title, text: "Der Hilfe-Chat ist weiterhin da. Überlege dir deine nächste Idee!" };
-      }
+    default:
       return { mood: "closed", label: `RUNDE ${s.round} GESCHLOSSEN`, title: "RUNDE GESCHLOSSEN", text: "Die Prompts sind gerade gesperrt, aber der Hilfe-Chat ist weiterhin da. Überlege dir deine nächste Idee!" };
-    }
   }
 }
 
@@ -92,7 +86,6 @@ function renderState(s) {
   $("lock-icon").hidden = status.mood !== "closed";
   clock.set(s.prompt_open ? s.remaining : null);
   renderStage(s.stage);
-  renderScores(s.scores);
 
   const { open, busy } = s.chat;
   $("chat-input").disabled = !open;

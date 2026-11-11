@@ -79,14 +79,8 @@ function statusText(s) {
       return { mood: "open", label: `RUNDE ${s.round}`, title: "PROMPT-ZEIT", text: "Alles, was du schreibst, wird automatisch gespeichert. Wenn die Zeit abläuft, beginnt die KI zu programmieren." };
     case "coding":
       return { mood: "closed", label: `RUNDE ${s.round} GESCHLOSSEN`, title: running ? "KI PROGRAMMIERT" : "BOT FERTIG", text: "Der Prompt für diese Runde kann nicht mehr geändert werden." };
-    case "ready": {
-      const last = s.scores.last;
-      if (last && last.round === s.round) {
-        const title = last.won ? "IHR HABT GEWONNEN!" : last.winner ? `${last.winner.toUpperCase()} HAT GEWONNEN!` : "NIEMAND HAT GEWONNEN";
-        return { mood: "fight", label: `KAMPF IN RUNDE ${s.round}`, title, text: "Lies deinen Code und überlege dir deine nächste Idee." };
-      }
+    case "ready":
       return { mood: "closed", label: `RUNDE ${s.round} GESCHLOSSEN`, title: "BOTS BEREIT", text: "Der Prompt für diese Runde kann nicht mehr geändert werden. Lies deinen Code und überlege dir deine nächste Idee." };
-    }
     case "fighting":
       if (s.demo) return { mood: "fight", label: "DEMO", title: "SCHAU ZU!", text: "Niemand hat den Bots bisher gesagt, was sie tun sollen. Deshalb stehen sie nur da. Dein Prompt ändert das!" };
       return { mood: "fight", label: s.round ? `RUNDE ${s.round} GESCHLOSSEN` : "TESTKAMPF", title: "KAMPF!", text: "Schau auf den grossen Bildschirm!" };
@@ -127,7 +121,7 @@ function renderState(s) {
   }
   updateCount();
   renderStage(s.stage);
-  renderScores(s.scores);
+  $("team-points").textContent = `score:${s.team.points}`;
   renderStartChoice(s);
   renderAgent(s);
   renderCode(s);

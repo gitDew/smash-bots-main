@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 import segno
 
 from server.containers import DockerError
-from server.event import MAX_PROMPT_SECONDS, MIN_PROMPT_SECONDS, Event, EventError
+from server.event import MAX_FIGHT_SECONDS, MAX_PROMPT_SECONDS, MIN_PROMPT_SECONDS, Event, EventError
 from server.llm import azure_client
 from server.llm_check import run_checks
 from server.stages import SVGS
@@ -172,6 +172,10 @@ class CharacterBody(BaseModel):
     character: str = Field(max_length=40)
 
 
+class PointsBody(BaseModel):
+    delta: int = Field(strict=True, ge=-1, le=1)
+
+
 class TimeBody(BaseModel):
     seconds: int = Field(ge=1, le=1800)
 
@@ -185,6 +189,7 @@ class MatchBody(BaseModel):
     team_ids: list[int]
     stage: str | None = Field(default=None, max_length=40)
     demo: bool = False
+    time_limit_seconds: int | None = Field(default=None, ge=0, le=MAX_FIGHT_SECONDS)
 
 
 class RollbackBody(BaseModel):
@@ -193,7 +198,7 @@ class RollbackBody(BaseModel):
 
 class SettingsBody(BaseModel):
     agent_timeout_seconds: int | None = Field(default=None, ge=30, le=1800)
-    time_limit_seconds: int | None = Field(default=None, ge=0, le=480)
+    time_limit_seconds: int | None = Field(default=None, ge=0, le=MAX_FIGHT_SECONDS)
     lives: int | None = Field(default=None, ge=1, le=4)
     azure_base_url: str | None = Field(default=None, max_length=300)
     azure_api_key: str | None = Field(default=None, max_length=500)
@@ -280,6 +285,11 @@ def create_admin_app(event: Event, *, port: int) -> FastAPI:
         await event.delete_team(team_id)
         return {"ok": True}
 
+    @app.post("/api/teams/{team_id}/points")
+    async def adjust_points(team_id: int, body: PointsBody) -> dict:
+        await event.adjust_points(team_id, body.delta)
+        return {"ok": True}
+
     @app.post("/api/teams/{team_id}/regenerate")
     async def regenerate(team_id: int) -> dict:
         await event.regenerate_link(team_id)
@@ -361,7 +371,7 @@ def create_admin_app(event: Event, *, port: int) -> FastAPI:
 
     @app.post("/api/match/start")
     async def start_match(body: MatchBody) -> dict:
-        await event.start_match(body.team_ids, body.stage, demo=body.demo)
+        await event.start_match(body.team_ids, body.stage, demo=body.demo, time_limit_seconds=body.time_limit_seconds)
         return {"ok": True}
 
     @app.post("/api/match/stop")

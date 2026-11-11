@@ -124,6 +124,9 @@ input[type=text], input[type=number], input[type=password], textarea, select {
   overflow-wrap: anywhere;
   text-align: right;
 }
+.team-identity { align-items: center; display: flex; gap: 24px; justify-content: flex-end; }
+.team-identity .team-name { font-size: 12px; }
+.team-score { color: var(--sand); font: 12px/1.5 var(--pixel-font); white-space: nowrap; }
 
 .status {
   align-items: center;
@@ -239,12 +242,6 @@ body[data-tab=bot] .tab[data-tab=bot] { background: var(--cream); color: var(--i
 .stage-card { margin-bottom: 12px; }
 .stage-card b { display: block; font: 10px/1.8 var(--pixel-font); }
 .stage-card p { font-size: 13px; margin: 6px 0 0; }
-
-.scores-panel { grid-column: 1 / -1; }
-.scores-last { font: 10px/1.8 var(--pixel-font); }
-.scores { margin: 0 0 12px; padding-left: 26px; }
-.scores li { margin-bottom: 4px; }
-.scores-large { font-size: 24px; min-width: min(70vw, 640px); }
 
 .prompt-box { position: relative; }
 .prompt-box textarea { min-height: 220px; resize: vertical; }
@@ -401,6 +398,8 @@ body[data-tab=bot] .tab[data-tab=bot] { background: var(--cream); color: var(--i
 .row { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
 .row input[type=text] { flex: 1; min-width: 180px; width: auto; }
 .row select { width: auto; }
+.match-controls { align-items: flex-end; }
+.match-time { display: grid; font-size: 13px; gap: 4px; }
 .admin-page input[type=text],
 .admin-page input[type=number],
 .admin-page input[type=password],
@@ -411,9 +410,9 @@ body[data-tab=bot] .tab[data-tab=bot] { background: var(--cream); color: var(--i
   max-width: 100%;
   width: 230px;
 }
-.teams-table { border-collapse: collapse; font-size: 13px; width: 100%; }
-.teams-table th { font: 8px/1.5 var(--pixel-font); padding: 6px; text-align: left; }
-.teams-table td { border-top: 3px solid var(--cream-dark); padding: 8px 6px; vertical-align: top; }
+.teams-table, .points-table { border-collapse: collapse; font-size: 13px; width: 100%; }
+.teams-table th, .points-table th { font: 8px/1.5 var(--pixel-font); padding: 6px; text-align: left; }
+.teams-table td, .points-table td { border-top: 3px solid var(--cream-dark); padding: 8px 6px; vertical-align: top; }
 .prompt-preview { max-height: 5.2em; max-width: 340px; overflow: auto; white-space: pre-wrap; }
 .pill { background: var(--slate); color: var(--cream-light); display: inline-block; font: 8px/1.4 var(--pixel-font); padding: 4px 6px; }
 .pill[data-status=done], .pill[data-status=finished], .pill[data-status=pass] { background: var(--sage-dark); }
