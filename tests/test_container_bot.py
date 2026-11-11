@@ -11,6 +11,7 @@ import unittest
 from unittest.mock import Mock, call
 
 import melee
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -99,6 +100,19 @@ class SandboxedBotTests(unittest.TestCase):
             time.sleep(0.01)
         self.assertIn("hello from the bot", bot.output)
 
+    def test_numbers_from_a_real_game_get_an_answer(self):
+        # libmelee reads the frame number and positions from Dolphin as numpy values.
+        def game_frame(frame):
+            return melee.GameState(frame=np.int32(frame), players={
+                port: melee.PlayerState(position=melee.Position(x=np.float32(x), y=np.float32(0)), stock=4)
+                for port, x in ((1, -20), (2, 30))
+            })
+        bot = self.bot_from((ROOT / "server" / "starter_bot.py").read_text()).start()
+        for frame in (120, 121):
+            controller = self.play(bot, game_frame(frame))
+            controller.tilt_analog.assert_called_once_with(melee.Button.BUTTON_MAIN, 1.0, 0.5)
+        self.assertEqual((bot.missed_frames, bot.bad_replies), (0, 0))
+
     def test_crashing_bot_stays_neutral_and_is_reported(self):
         bot = self.bot_from("""
             import melee
@@ -164,6 +178,9 @@ class MatchResultTests(unittest.TestCase):
         self.assertEqual(runner.match_result(players(p1=2, p2=1), bots, False)["winner_port"], 1)
         self.assertIsNone(runner.match_result(players(p1=2, p2=2), bots, True)["winner_port"])
         self.assertIsNone(runner.match_result(None, bots, False)["winner_port"])
+        # Melee may still give a player who is out more stocks, but they cannot win.
+        self.assertEqual(runner.match_result(players(p1=2, p2=4), bots, False, {2})["winner_port"], 1)
+        self.assertIsNone(runner.match_result(players(p1=2, p2=4), bots, False, {1, 2})["winner_port"])
 
 
 if __name__ == "__main__":

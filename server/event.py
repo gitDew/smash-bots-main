@@ -9,7 +9,7 @@ happened, so a page that is out of date cannot get around a closed round.
 from __future__ import annotations
 
 import asyncio
-from collections import deque
+from collections import Counter, deque
 import logging
 from pathlib import Path
 import time
@@ -24,11 +24,13 @@ from server.containers import Docker, DockerError
 from server.db import Database
 from server.hub import Hub
 from server.match import MATCH_DIR, MatchRunner, read_result, runner_command
+from server.stages import DEFAULT_STAGE, STAGES, stage_info
 
 
 logger = logging.getLogger("smash.event")
 
 MAX_PROMPT_CHARS = 2000
+MIN_PROMPT_SECONDS, MAX_PROMPT_SECONDS = 15, 7200
 MAX_TEAMS_PER_MATCH = 4
 TICK_SECONDS = 0.25
 MAX_LOG_LINES = 300
@@ -55,6 +57,8 @@ class Event:
         self.chat = Chat(db, hub, client)
         self.match_runner = MatchRunner()
         self.match_log: deque[str] = deque(maxlen=MAX_LOG_LINES)
+        # A demo is a match in which nobody has a bot. It is never saved.
+        self.demo_match = False
         self.docker_status = "not checked"
         self._lock = asyncio.Lock()
         self._tasks: set[asyncio.Task] = set()
@@ -132,17 +136,28 @@ class Event:
 
     # Rounds
 
-    async def open_round(self) -> None:
+    async def open_round(self, seconds: int | None = None, stage: str | None = None) -> None:
+        """The host picks the prompt time and the stage for each round.
+
+        Left out, they are the same as last round's.
+        """
         async with self._lock:
             event = self.db.event()
             if event["phase"] not in ("setup", "ready"):
                 raise EventError("A round can only be opened before the first round or between rounds.")
+            seconds = seconds or self.db.settings()["prompt_seconds"]
+            if not MIN_PROMPT_SECONDS <= seconds <= MAX_PROMPT_SECONDS:
+                raise EventError(
+                    f"The prompt time must be {MIN_PROMPT_SECONDS} seconds to {MAX_PROMPT_SECONDS // 60} minutes."
+                )
+            stage = self._require_stage(stage or event["stage"] or DEFAULT_STAGE)
             teams = self.db.teams()
             if not teams:
                 raise EventError("Add at least one team first.")
             self._require_characters(teams)
             await asyncio.gather(*(self._prepare_team(team) for team in teams))
-            seconds = self.db.settings()["prompt_seconds"]
+            self.db.update_settings({"prompt_seconds": seconds})
+            self.db.set_stage(stage)
             self.db.set_event("prompting", event["round"] + 1, time.time() + seconds)
         await self.broadcast()
 
@@ -239,6 +254,12 @@ class Event:
         if missing:
             raise EventError(f"Choose a character for: {', '.join(missing)}.")
 
+    @staticmethod
+    def _require_stage(stage: str) -> str:
+        if stage not in STAGES:
+            raise EventError("Choose a stage from the list.")
+        return stage
+
     def _require_free_character(self, character: str, team_id: int | None = None) -> None:
         if character not in CHARACTERS:
             raise EventError("Choose a character from the list.")
@@ -320,7 +341,13 @@ class Event:
 
     # Matches
 
-    async def start_match(self, team_ids: list[int]) -> None:
+    async def start_match(self, team_ids: list[int], stage: str | None = None, *, demo: bool = False) -> None:
+        """Start a match with the teams' bots, or a demo with their characters and no bots.
+
+        A match is played on its round's stage. The stage given here is only
+        for demos, which show the next round's stage, and for matches before
+        any round has a stage.
+        """
         async with self._lock:
             event = self.db.event()
             if event["phase"] not in ("setup", "ready"):
@@ -328,10 +355,13 @@ class Event:
             if len(set(team_ids)) != len(team_ids) or not 2 <= len(team_ids) <= MAX_TEAMS_PER_MATCH:
                 raise EventError(f"Choose 2 to {MAX_TEAMS_PER_MATCH} different teams.")
             self._require_characters([self._require_team(team_id) for team_id in team_ids])
+            choices = (stage, event["stage"]) if demo else (event["stage"], stage)
+            stage = self._require_stage(next((choice for choice in choices if choice), DEFAULT_STAGE))
             if not Path(self.db.settings()["iso_path"]).expanduser().is_file():
                 raise EventError("The Melee ISO was not found. Check its path in the settings.")
+            self.demo_match = demo
             self.db.set_event("fighting", event["round"], None)
-            self.spawn(self._run_match(event["round"], team_ids))
+            self.spawn(self._run_match(event["round"], team_ids, stage, demo))
         await self.broadcast()
 
     async def _log(self, line: str) -> None:
@@ -346,30 +376,79 @@ class Event:
         if not verdict.get("ok"):
             raise EventError(f"{team['name']}'s bot failed its check: {verdict.get('error')}")
 
-    async def _run_match(self, round_number: int, team_ids: list[int]) -> None:
-        match_id = self.db.add_match(round_number, team_ids)
+    async def _run_match(self, round_number: int, team_ids: list[int], stage: str, demo: bool) -> None:
+        match_id = None if demo else self.db.add_match(round_number, team_ids, stage)
         self.match_log.clear()
         status, result = "failed", None
         try:
-            await self._log("Getting the bots ready...")
-            await asyncio.gather(*(self._ready_for_match(team_id) for team_id in team_ids))
-            MATCH_DIR.mkdir(parents=True, exist_ok=True)
-            result_file = MATCH_DIR / f"match_{match_id}.json"
+            if demo:
+                await self._log(
+                    f"Demo on {STAGES[stage]['name']}: nobody has a bot, so every player stands still. "
+                    "Press STOP MATCH when you are done explaining."
+                )
+                result_file = None
+            else:
+                await self._log(f"Getting the bots ready for {STAGES[stage]['name']}...")
+                await asyncio.gather(*(self._ready_for_match(team_id) for team_id in team_ids))
+                MATCH_DIR.mkdir(parents=True, exist_ok=True)
+                result_file = MATCH_DIR / f"match_{match_id}.json"
             code = await self.match_runner.run(
-                runner_command([self.db.team(t) for t in team_ids], self.db.settings(), result_file),
+                runner_command(
+                    [self.db.team(t) for t in team_ids], self.db.settings(), result_file,
+                    stage=stage, demo=demo,
+                ),
                 self._log,
             )
-            result = read_result(result_file, team_ids)
+            if result_file is not None:
+                result = read_result(result_file, team_ids)
             status = "finished" if code == 0 else "stopped" if code == 130 else "failed"
             await self._log(f"Runner exited with code {code}.")
         except (EventError, DockerError, OSError) as exc:
             await self._log(f"Could not run the match: {exc}")
         finally:
-            self.db.finish_match(match_id, status, result, "\n".join(self.match_log))
+            if match_id is not None:
+                self.db.finish_match(match_id, status, result, "\n".join(self.match_log))
+            self.demo_match = False
             event = self.db.event()
             if event["phase"] == "fighting":
                 self.db.set_event("ready" if round_number else "setup", round_number, None)
             await self.broadcast()
+
+    # Scores
+
+    def scores(self, team_id: int | None = None) -> dict:
+        """Wins from matches in a real round that ended by themselves.
+
+        A match the host stops counts for nobody, and demos are never saved.
+        """
+        teams = {team["id"]: team for team in self.db.teams()}
+        matches = self.db.finished_matches()
+        wins, played = Counter(), Counter()
+        for match in matches:
+            played.update(match["team_ids"])
+            winner = (match["result"] or {}).get("winner_team")
+            if winner is not None:
+                wins[winner] += 1
+        table = sorted(
+            (
+                {"name": team["name"], "character": CHARACTERS.get(team["character"]),
+                 "wins": wins[number], "played": played[number]}
+                for number, team in teams.items()
+            ),
+            key=lambda row: (-row["wins"], row["name"].lower()),
+        )
+        last = None
+        if matches:
+            match = matches[-1]
+            winner = (match["result"] or {}).get("winner_team")
+            last = {
+                "round": match["round"],
+                "stage": STAGES.get(match["stage"], {}).get("name"),
+                "teams": [teams[number]["name"] for number in match["team_ids"] if number in teams],
+                "winner": teams[winner]["name"] if winner in teams else None,
+                "won": team_id is not None and winner == team_id,
+            }
+        return {"table": table, "last": last}
 
     def stop_match(self) -> None:
         if not self.match_runner.stop():
@@ -402,6 +481,8 @@ class Event:
         return {
             "type": "state", "phase": event["phase"], "round": event["round"],
             "remaining": self._remaining(event), "prompt_open": self.prompt_open(event),
+            "stage": stage_info(event["stage"]), "demo": self._demo_running(event),
+            "scores": self.scores(),
             "chat": self.chat.status(session, event),
         }
 
@@ -418,6 +499,9 @@ class Event:
 
     # What the pages see
 
+    def _demo_running(self, event: dict) -> bool:
+        return event["phase"] == "fighting" and self.demo_match
+
     def _remaining(self, event: dict) -> float | None:
         return max(0.0, event["deadline"] - time.time()) if event["deadline"] else None
 
@@ -433,6 +517,9 @@ class Event:
             "round": event["round"],
             "remaining": self._remaining(event),
             "prompt_open": self.prompt_open(event),
+            "stage": stage_info(event["stage"]),
+            "demo": self._demo_running(event),
+            "scores": self.scores(team["id"]),
             "prompt": self.db.prompt(team["id"], event["round"]),
             "max_prompt_chars": MAX_PROMPT_CHARS,
             "agent": None if run is None else {
@@ -484,12 +571,17 @@ class Event:
             winner = (match["result"] or {}).get("winner_team")
             matches.append({
                 "id": match["id"], "round": match["round"], "status": match["status"],
+                "stage": STAGES.get(match["stage"], {}).get("name"),
                 "teams": [names.get(team_id, "?") for team_id in match["team_ids"]],
-                "winner": names.get(winner),
+                # A stopped match still has a leader, but nobody won it.
+                "winner": names.get(winner) if match["status"] == "finished" else None,
             })
         return {
             "type": "state", "phase": event["phase"], "round": event["round"],
             "remaining": self._remaining(event), "teams": teams,
+            "stage": event["stage"], "stages": {stage: stage_info(stage) for stage in STAGES},
+            "demo": self._demo_running(event),
+            "scores": self.scores(),
             # The key is write-only: the admin page is only ever told if one is saved.
             "settings": {key: value for key, value in settings.items() if key != "azure_api_key"},
             "characters": CHARACTERS,

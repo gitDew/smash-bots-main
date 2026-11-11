@@ -2,6 +2,12 @@
 
 Your bot looks at the game 60 times every second.
 
+## How to win
+
+Usually every player has just one life: get knocked out once and you are out!
+Knock the others off the stage, and stay on it yourself. The last player still
+in wins.
+
 ## Everyone in the match
 
 Your bot can see **every** player, including all your opponents. For each one:
@@ -49,6 +55,7 @@ Every frame it can move the sticks and press buttons:
 
 ## Good ideas to try
 
+- Look at this round's stage: where are the edges and the platforms?
 - Who is closest? Who has the most damage?
 - What should my bot do when it falls off the edge?
 - Should it attack, shield or run away when someone is close?

@@ -65,15 +65,27 @@ class Docker:
         return True, "ok"
 
     async def ensure(self, team_id: int) -> None:
+        """Start the team's container, first replacing it if an older image made it.
+
+        Without this, a rebuilt image would only reach new teams. The bot is
+        kept in a volume, so it survives the replacement.
+        """
         name = container_name(team_id)
-        code, out, _ = await self._docker("inspect", "-f", "{{.State.Running}}", name)
+        code, out, _ = await self._docker("inspect", "-f", "{{.Image}} {{.State.Running}}", name)
+        image, _, running = out.decode().strip().partition(" ")
+        if code == 0 and image != await self._image_id():
+            await self._checked("rm", "-f", name)
+            code = 1
         if code != 0:
             await self._checked(
                 "run", "-d", "--name", name, *SANDBOX_FLAGS,
                 "-v", f"{volume_name(team_id)}:/workspace", IMAGE,
             )
-        elif out.strip() != b"true":
+        elif running != "true":
             await self._checked("start", name)
+
+    async def _image_id(self) -> str:
+        return (await self._checked("image", "inspect", "-f", "{{.Id}}", IMAGE, timeout=10)).decode().strip()
 
     async def restart(self, team_id: int) -> None:
         """Clears anything still running from an earlier agent or match."""

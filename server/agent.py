@@ -10,6 +10,7 @@ from server.characters import CHARACTERS
 from server.containers import BOT_FILE, Docker, DockerError
 from server.db import Database
 from server.llm import STATELESS, check_finished, function_calls, is_content_filter, replay_items
+from server.stages import STAGES
 
 
 MAX_TURNS = 30
@@ -155,6 +156,12 @@ class AgentRunner:
                 "In its last match this bot crashed on "
                 f"{report.get('exceptions', 0)} frames and missed "
                 f"{report.get('missed_frames', 0)} frames. Last error:\n{report.get('last_error')}"
+            )
+        stage = self.db.event()["stage"]
+        if stage in STAGES:
+            parts.append(
+                f"This round's match is on {STAGES[stage]['name']} (melee.Stage.{stage}). "
+                f"{STAGES[stage]['about']} /docs/libmelee/stages.md has its edges and platforms."
             )
         wish = self.db.prompt(team_id, round_number)
         parts.append(f"The team's wish for this round:\n<wish>\n{wish}\n</wish>")

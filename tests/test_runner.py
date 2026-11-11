@@ -135,6 +135,20 @@ class MenuTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def test_melee_starts_with_the_requested_stock_count(self):
+        source = Path(melee.__file__).parent / "GALE01r2.ini"
+        for lives, expected in ((1, "01000A00"), (3, "03000A00"), (0, "04000A00")):
+            with self.subTest(lives=lives), tempfile.TemporaryDirectory() as directory:
+                config_path = Path(directory) / "GameSettings" / "GALE01r2.ini"
+                config_path.parent.mkdir()
+                original = source.read_text().format(extra_codes="")
+                config_path.write_text(original)
+                runner.configure_match_stocks(Mock(dolphin_home_path=directory), lives)
+                config = config_path.read_text()
+                self.assertIn("[Gecko_Enabled]\n$Event: Starting Stocks\n", config)
+                self.assertTrue(config.endswith(f"$Event: Starting Stocks\n043D4A4C {expected}\n"))
+                self.assertIn("$Optional: Extract Menu Info", config)
+
     def test_backend_fallback_only_applies_to_older_slippi_by_default(self):
         for mainline, fallback, expected in (
             (True, True, "Metal"),
@@ -155,6 +169,9 @@ class RunnerTests(unittest.TestCase):
     def test_fighter_reads_the_container_and_character(self):
         self.assertEqual(runner.fighter("smash-team-1=MARTH"), ("smash-team-1", melee.Character.MARTH))
 
+    def test_fighter_without_a_container_has_no_bot(self):
+        self.assertEqual(runner.fighter("MARTH"), (None, melee.Character.MARTH))
+
     def test_match_needs_valid_and_different_fighters(self):
         for fighters in (
             ["a=FOX"],
@@ -163,6 +180,9 @@ class RunnerTests(unittest.TestCase):
             ["a=FOX", "b=NANA"],
             ["a", "b"],
             ["a=FOX", "=DK"],
+            ["a=FOX", "b=DK", "--stage", "NO_STAGE"],
+            ["a=FOX", "b=DK", "--stage", "MUTE_CITY"],
+            ["a=FOX", "b=DK", "--lives", "-1"],
         ):
             with self.subTest(fighters=fighters), patch.object(sys, "argv", ["runner.py", *fighters]):
                 with contextlib.redirect_stderr(io.StringIO()):
@@ -172,15 +192,26 @@ class RunnerTests(unittest.TestCase):
 
     def run_mocked_match(
         self, count, *, missing_port=None, unexpected_port=None, team_mode=False,
-        incomplete_countdown=False, absent_later=None, interrupted=False,
+        incomplete_countdown=False, absent_later=None, interrupted=False, dolphin_closed=False,
         recording_error=None, frame_error=None, stop_error=None, no_record=False,
-        gfx_backend=None,
+        gfx_backend=None, idle_ports=(), stage=None, game_stage=melee.Stage.FINAL_DESTINATION,
+        last_one_standing=None, lives=None, game_frames=None,
     ):
         with tempfile.TemporaryDirectory() as directory:
             iso = Path(directory) / "game.iso"
             iso.touch()
-            args = ["runner.py", "--iso", str(iso), "--time-limit", "1"]
-            args.extend(f"smash-team-{port}={CHARACTERS[port - 1].name}" for port in range(1, count + 1))
+            args = ["runner.py", "--iso", str(iso)]
+            if last_one_standing is None and game_frames is None:
+                args.extend(("--time-limit", "1"))
+            if lives is not None:
+                args.extend(("--lives", str(lives)))
+            args.extend(
+                CHARACTERS[port - 1].name if port in idle_ports
+                else f"smash-team-{port}={CHARACTERS[port - 1].name}"
+                for port in range(1, count + 1)
+            )
+            if stage is not None:
+                args.extend(("--stage", stage))
             if no_record:
                 args.append("--no-record")
             if gfx_backend is not None:
@@ -198,6 +229,7 @@ class RunnerTests(unittest.TestCase):
                 self.assertEqual(container, f"smash-team-{port}")
                 bot = Mock()
                 bot.start.return_value = bot
+                bot.report.return_value = {"missed_frames": 0, "exceptions": 0, "bad_replies": 0}
                 bots[port] = bot
                 return bot
 
@@ -209,7 +241,7 @@ class RunnerTests(unittest.TestCase):
                 participants[unexpected_port] = player()
             state = melee.GameState(
                 menu_state=melee.Menu.IN_GAME, frame=0,
-                players=participants, is_teams=team_mode,
+                players=participants, is_teams=team_mode, stage=game_stage,
             )
             timeout = melee.GameState(
                 menu_state=melee.Menu.IN_GAME,
@@ -228,11 +260,28 @@ class RunnerTests(unittest.TestCase):
                     menu_state=melee.Menu.IN_GAME, frame=1,
                     players={port: value for port, value in participants.items() if port != absent_later},
                 ))
-            frames.append(timeout)
+            if game_frames is not None:
+                frames.extend(game_frames)
+            elif last_one_standing is None:
+                frames.append(timeout)
+            else:
+                # Everyone else has lost their last stock, then Melee leaves the game.
+                frames.append(melee.GameState(
+                    menu_state=melee.Menu.IN_GAME, frame=5000,
+                    players={
+                        port: player(CHARACTERS[port - 1], stock=1 if port == last_one_standing else 0)
+                        for port in participants
+                    },
+                ))
+                frames.append(melee.GameState(menu_state=melee.Menu.MAIN_MENU))
             console = Mock()
             console.connect.return_value = True
-            console.step.side_effect = KeyboardInterrupt if interrupted else frames
-            menu_helper = Mock()
+            console.step.side_effect = (
+                KeyboardInterrupt if interrupted
+                else runner.EnetDisconnected if dolphin_closed
+                else frames
+            )
+            menu_helper = self.menu_helper = Mock()
             recorder = Mock(path=Path(directory) / "replay.mp4", home=Path(directory) / "User")
             recorder.check.side_effect = recording_error
             recorder.check_frames.side_effect = frame_error
@@ -246,6 +295,7 @@ class RunnerTests(unittest.TestCase):
                 patch.object(runner.melee, "Controller", side_effect=make_controller),
                 patch.object(runner.melee, "MenuHelper", return_value=menu_helper),
                 patch.object(runner, "configure_render_to_main"),
+                patch.object(runner, "configure_match_stocks") as configure_stocks,
                 patch.object(runner.NativeReplayRecorder, "start", return_value=recorder) as start_recording,
                 patch.object(runner, "ContainerBot", side_effect=make_bot),
                 patch.object(runner.signal, "signal"),
@@ -255,6 +305,7 @@ class RunnerTests(unittest.TestCase):
                 result = runner.main()
 
             self.assertEqual(set(controllers), set(range(1, count + 1)))
+            configure_stocks.assert_called_once_with(console, lives if lives is not None else 1)
             self.assertEqual(
                 console.setup_dolphin_controller.call_args_list,
                 [call(port, melee.ControllerType.UNPLUGGED) for port in range(count + 1, 5)],
@@ -294,6 +345,42 @@ class RunnerTests(unittest.TestCase):
                     bots[port].get_character.assert_not_called()
                     self.assertIs(bots[port].apply.call_args.args[0], controllers[port])
 
+    def test_players_without_a_bot_stand_still(self):
+        result, bots, controllers, output, _ = self.run_mocked_match(3, idle_ports=(1, 3))
+        self.assertEqual(result, 0)
+        self.assertEqual(set(bots), {2})
+        self.assertIn("Player 1 bot: none, stands still", output)
+        for port in (1, 3):
+            controllers[port].release_all.assert_called()
+            controllers[port].press_button.assert_not_called()
+            controllers[port].tilt_analog.assert_not_called()
+        bots[2].send.assert_called_once()
+
+    def test_the_chosen_stage_is_picked_and_checked(self):
+        result, _, _, output, errors = self.run_mocked_match(
+            2, stage="BATTLEFIELD", game_stage=melee.Stage.BATTLEFIELD,
+        )
+        self.assertEqual(result, 0)
+        self.assertIn("Selected stage: BATTLEFIELD", output)
+        picked = {c.kwargs["stage_selected"] for c in self.menu_helper.menu_helper_simple.call_args_list}
+        self.assertEqual(picked, {melee.Stage.BATTLEFIELD})
+        self.assertNotIn("Warning", errors)
+        result, _, _, _, errors = self.run_mocked_match(
+            2, stage="BATTLEFIELD", game_stage=melee.Stage.DREAMLAND,
+        )
+        self.assertEqual(result, 0)
+        self.assertIn("the game is on DREAMLAND, not BATTLEFIELD", errors)
+
+    def test_bots_that_stop_playing_are_named_in_the_log(self):
+        self.assertIsNone(runner.bot_trouble({"missed_frames": 0, "exceptions": 0, "bad_replies": 0}))
+        self.assertIsNone(runner.bot_trouble(runner.IdleBot(1).report()))
+        line = runner.bot_trouble({
+            "missed_frames": 1446, "exceptions": 0, "bad_replies": 0, "last_error": None,
+            "output": ["Traceback ...", "TypeError: Object of type int32 is not JSON serializable"],
+        })
+        self.assertIn("missed 1446 frames", line)
+        self.assertIn("int32 is not JSON serializable", line)
+
     def test_rejects_match_that_did_not_include_every_configured_player(self):
         result, bots, _, _, errors = self.run_mocked_match(4, missing_port=4)
         self.assertEqual(result, 1)
@@ -314,6 +401,53 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result, 130)
         self.assertIn("Interrupted.", output)
         self.assertIn("Replay saved:", output)
+
+    def test_with_no_time_limit_the_match_lasts_until_one_player_is_left(self):
+        for count, survivor in ((2, 1), (4, 3)):
+            with self.subTest(count=count):
+                result, bots, _, output, _ = self.run_mocked_match(count, last_one_standing=survivor, lives=0)
+                self.assertEqual(result, 0)
+                self.assertNotIn("Time limit reached", output)
+                self.assertIn(f"Match finished: Player {survivor} wins.", output)
+                # Frame 5000 is long past any old fixed length, and the bots still played it.
+                self.assertEqual(bots[1].send.call_count, 2)
+
+    @staticmethod
+    def game(frame, stocks):
+        """An in-game frame. run_mocked_match starts every player with stocks equal to its port."""
+        return melee.GameState(menu_state=melee.Menu.IN_GAME, frame=frame, players={
+            port: player(CHARACTERS[port - 1], stock=stock) for port, stock in stocks.items()
+        })
+
+    def test_with_one_life_the_first_knockout_ends_a_two_player_match(self):
+        frames = [self.game(frame, {1: 1, 2: 1}) for frame in (100, 150, 190)]
+        result, bots, _, output, _ = self.run_mocked_match(2, game_frames=frames)
+        self.assertEqual(result, 0)
+        self.assertIn("Player 2 is out.", output)
+        self.assertIn("Last player standing: Player 1 wins.", output)
+        # The game runs on a moment so the knockout is seen; the loser gets no more frames.
+        self.assertEqual(bots[1].send.call_count, 3)
+        self.assertEqual(bots[2].send.call_count, 1)
+
+    def test_players_who_are_out_vanish_from_the_bots_view(self):
+        frames = [
+            self.game(100, {1: 1, 2: 2, 3: 2}),
+            self.game(200, {1: 1, 2: 1, 3: 2}),
+            self.game(290, {1: 1, 2: 1, 3: 2}),
+        ]
+        result, bots, _, output, _ = self.run_mocked_match(3, lives=1, game_frames=frames)
+        self.assertEqual(result, 0)
+        self.assertLess(output.index("Player 3 is out."), output.index("Player 2 is out."))
+        self.assertIn("Last player standing: Player 1 wins.", output)
+        seen_by_one = bots[1].send.call_args_list[1].args[0]
+        self.assertEqual(set(seen_by_one.players), {1, 2})
+        self.assertEqual(bots[3].send.call_count, 1)
+
+    def test_closing_dolphin_stops_the_match_cleanly(self):
+        result, _, _, output, errors = self.run_mocked_match(2, dolphin_closed=True)
+        self.assertEqual(result, 130)
+        self.assertIn("Dolphin was closed", output)
+        self.assertNotIn("Traceback", errors)
 
     def test_recording_failures_are_reported(self):
         error = runner.RecordingError("disk full")

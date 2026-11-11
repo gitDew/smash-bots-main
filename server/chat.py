@@ -1,9 +1,9 @@
 """The docs helper chat, open to anyone with the event's chat QR code.
 
 It has no tools: it can only return text. Each phone gets its own private
-conversation, and every conversation shares the same fixed reference text, so
-this code has no way to show anyone a team's prompts or bots. Chat text never
-reaches the coding agent.
+conversation, and every conversation shares the same fixed reference text and
+the round's stage, so this code has no way to show anyone a team's prompts or
+bots. Chat text never reaches the coding agent.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from pathlib import Path
 from server.db import Database, ROOT
 from server.hub import Hub
 from server.llm import check_finished, is_content_filter
+from server.stages import STAGES
 
 
 MAX_QUESTION_CHARS = 500
@@ -85,7 +86,7 @@ class Chat:
             question = self.db.add_chat(session, round_number, "user", text)
             await self.hub.to_chat(session, {"type": "chat_message", "message": question})
             async with self._slots:
-                answer = await self._stream(session, [*history, question])
+                answer = await self._stream(session, event, [*history, question])
             saved = self.db.add_chat(session, round_number, "assistant", answer)
             await self.hub.to_chat(session, {"type": "chat_done", "message": saved})
         except Exception as exc:
@@ -98,12 +99,22 @@ class Chat:
         finally:
             self.busy.discard(session)
 
-    async def _stream(self, session: str, history: list[dict]) -> str:
+    def instructions(self, event: dict) -> str:
+        """The fixed reference, plus this round's stage, which everyone may know."""
+        stage = STAGES.get(event.get("stage"))
+        if stage is None:
+            return self.system
+        return (
+            f"{self.system}\n\n===== THIS ROUND =====\n"
+            f"The match is on {stage['name']} (melee.Stage.{event['stage']}). {stage['about']}"
+        )
+
+    async def _stream(self, session: str, event: dict, history: list[dict]) -> str:
         if self.client is None:
             raise RuntimeError("Azure OpenAI is not configured.")
         stream = await self.client.responses.create(
             model=self.db.settings()["model"], stream=True, store=False,
-            max_output_tokens=MAX_OUTPUT_TOKENS, instructions=self.system,
+            max_output_tokens=MAX_OUTPUT_TOKENS, instructions=self.instructions(event),
             input=[{"role": row["role"], "content": row["content"]} for row in history],
         )
         answer = ""

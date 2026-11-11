@@ -70,9 +70,16 @@ function statusText(s) {
     case "prompting":
       return { mood: "open", label: `ROUND ${s.round}`, title: "PROMPT TIME", text: "Ask away, then share your best ideas with your team." };
     case "fighting":
+      if (s.demo) return { mood: "fight", label: "DEMO", title: "WATCH!", text: "Nobody has told the bots what to do yet, so they just stand there. What should yours do?" };
       return { mood: "fight", label: s.round ? `ROUND ${s.round} CLOSED` : "TEST MATCH", title: "FIGHT!", text: "Watch the big screen! You can still ask questions for the next round." };
-    default:
+    default: {
+      const last = s.scores.last;
+      if (s.phase === "ready" && last && last.round === s.round) {
+        const title = last.winner ? `${last.winner.toUpperCase()} WON!` : "NOBODY WON";
+        return { mood: "fight", label: `ROUND ${s.round} MATCH`, title, text: "The helper is still here. Plan your next idea!" };
+      }
       return { mood: "closed", label: `ROUND ${s.round} CLOSED`, title: "ROUND CLOSED", text: "Prompts are locked for now, but the helper is still here. Plan your next idea!" };
+    }
   }
 }
 
@@ -84,6 +91,8 @@ function renderState(s) {
   $("status-text").textContent = status.text;
   $("lock-icon").hidden = status.mood !== "closed";
   clock.set(s.prompt_open ? s.remaining : null);
+  renderStage(s.stage);
+  renderScores(s.scores);
 
   const { open, busy } = s.chat;
   $("chat-input").disabled = !open;

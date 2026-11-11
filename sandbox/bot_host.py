@@ -99,7 +99,8 @@ def serve(port: int, path: Path, stdin, send) -> int:
             return 0
         gamestate = pickle.loads(payload)
         controller = RecordingController(port)
-        reply = {"type": "frame", "frame": gamestate.frame, "ops": []}
+        # In a real game the frame number is a numpy int, which JSON cannot hold.
+        reply = {"type": "frame", "frame": int(gamestate.frame), "ops": []}
         try:
             bot.act(gamestate, controller)
             reply["ops"] = controller.ops

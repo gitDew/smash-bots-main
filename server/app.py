@@ -14,9 +14,10 @@ from pydantic import BaseModel, Field
 import segno
 
 from server.containers import DockerError
-from server.event import Event, EventError
+from server.event import MAX_PROMPT_SECONDS, MIN_PROMPT_SECONDS, Event, EventError
 from server.llm import azure_client
 from server.llm_check import run_checks
+from server.stages import SVGS
 
 
 HERE = Path(__file__).resolve().parent
@@ -65,6 +66,14 @@ def _known_session(value: str) -> str | None:
         return None
 
 
+def _add_stage_maps(app: FastAPI) -> None:
+    @app.get("/stages/{stage}.svg")
+    async def stage_map(stage: str) -> Response:
+        if stage not in SVGS:
+            raise HTTPException(status_code=404)
+        return Response(SVGS[stage], media_type="image/svg+xml")
+
+
 def _qr_svg(link: str) -> Response:
     buffer = io.BytesIO()
     segno.make(link, error="m").save(buffer, kind="svg", scale=6, border=2, dark="#26242b", light="#e6dfcd")
@@ -74,6 +83,7 @@ def _qr_svg(link: str) -> Response:
 def create_team_app(event: Event) -> FastAPI:
     app = _new_app()
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
+    _add_stage_maps(app)
 
     @app.get("/", response_class=HTMLResponse)
     async def home() -> HTMLResponse:
@@ -166,8 +176,15 @@ class TimeBody(BaseModel):
     seconds: int = Field(ge=1, le=1800)
 
 
+class RoundBody(BaseModel):
+    seconds: int = Field(ge=MIN_PROMPT_SECONDS, le=MAX_PROMPT_SECONDS)
+    stage: str = Field(max_length=40)
+
+
 class MatchBody(BaseModel):
     team_ids: list[int]
+    stage: str | None = Field(default=None, max_length=40)
+    demo: bool = False
 
 
 class RollbackBody(BaseModel):
@@ -175,9 +192,9 @@ class RollbackBody(BaseModel):
 
 
 class SettingsBody(BaseModel):
-    prompt_seconds: int | None = Field(default=None, ge=15, le=7200)
     agent_timeout_seconds: int | None = Field(default=None, ge=30, le=1800)
-    match_seconds: int | None = Field(default=None, ge=10, le=480)
+    time_limit_seconds: int | None = Field(default=None, ge=0, le=480)
+    lives: int | None = Field(default=None, ge=1, le=4)
     azure_base_url: str | None = Field(default=None, max_length=300)
     azure_api_key: str | None = Field(default=None, max_length=500)
     model: str | None = Field(default=None, min_length=1, max_length=100)
@@ -204,6 +221,7 @@ def create_admin_app(event: Event, *, port: int) -> FastAPI:
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
     app.mount("/admin-static", StaticFiles(directory=ADMIN_STATIC), name="admin-static")
+    _add_stage_maps(app)
 
     @app.middleware("http")
     async def local_only(request: Request, call_next) -> Response:
@@ -327,8 +345,8 @@ def create_admin_app(event: Event, *, port: int) -> FastAPI:
         return {"ok": True}
 
     @app.post("/api/round/open")
-    async def open_round() -> dict:
-        await event.open_round()
+    async def open_round(body: RoundBody) -> dict:
+        await event.open_round(body.seconds, body.stage)
         return {"ok": True}
 
     @app.post("/api/round/close")
@@ -343,7 +361,7 @@ def create_admin_app(event: Event, *, port: int) -> FastAPI:
 
     @app.post("/api/match/start")
     async def start_match(body: MatchBody) -> dict:
-        await event.start_match(body.team_ids)
+        await event.start_match(body.team_ids, body.stage, demo=body.demo)
         return {"ok": True}
 
     @app.post("/api/match/stop")

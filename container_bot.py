@@ -148,7 +148,7 @@ class ContainerBot:
         with self._lock:
             if self._dead or self._in_flight is not None:
                 return
-            self._in_flight = gamestate.frame
+            self._in_flight = int(gamestate.frame)
         payload = pickle.dumps(gamestate, protocol=5)
         try:
             self._process.stdin.write(struct.pack(">I", len(payload)) + payload)

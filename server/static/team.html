@@ -54,6 +54,11 @@
     <section class="panel" id="panel-prompt">
       <h2>YOUR PROMPT</h2>
       <p>Describe how your bot should fight. The AI turns your words into code.</p>
+      <div class="stage-card" id="stage-card" hidden>
+        <b id="stage-name"></b>
+        <img class="stage-map" id="stage-map" alt="">
+        <p id="stage-about"></p>
+      </div>
       <p class="chat-note" id="character-line" hidden></p>
       <div class="mode-line" id="mode-line" hidden>
         <span id="mode-text"></span>
@@ -91,6 +96,12 @@
         </div>
       </div>
       <p id="code-wait" hidden>Your code appears here as soon as the AI has finished.</p>
+    </section>
+
+    <section class="panel scores-panel" id="scores-card" hidden>
+      <h2>SCOREBOARD</h2>
+      <p class="scores-last" id="scores-last"></p>
+      <ol class="scores" id="scores-list"></ol>
     </section>
 
   </main>

@@ -2,13 +2,15 @@
 """Shared libmelee arena runner.
 
 The runner owns Dolphin, the Melee console, controllers, and menu navigation.
-Team bots run inside their own Docker containers (see container_bot.py).
+Team bots run inside their own Docker containers (see container_bot.py). A
+player given only a character has no bot and stands still, for demos.
 """
 
 from __future__ import annotations
 
 import argparse
 import configparser
+import copy
 import json
 import math
 import signal
@@ -16,6 +18,7 @@ import sys
 import time
 from pathlib import Path
 import melee
+from melee.slippstream import EnetDisconnected
 
 from container_bot import FRAME_BUDGET_SECONDS, ContainerBot
 from replay import NativeReplayRecorder, RecordingError
@@ -34,7 +37,11 @@ DEFAULT_REPLAY_DIR = PROJECT_ROOT / "replays"
 # Frame 0 is the start of timed gameplay; negative frames are the countdown.
 GAME_FPS = 60
 DEFAULT_GAME_CLOCK_SECONDS = 8 * 60
-DEFAULT_TIME_LIMIT_SECONDS = 2 * 60
+# No limit: a stock match plays until one player is left, or Melee's clock runs out.
+DEFAULT_TIME_LIMIT_SECONDS = 0
+# Once a winner is known, keep the game running this long so the last
+# knockout can be seen before Dolphin closes.
+END_GRACE_FRAMES = 90
 
 
 def time_left_seconds(
@@ -166,6 +173,19 @@ def configure_render_to_main(
         config.write(config_file)
 
 
+def configure_match_stocks(console: melee.Console, lives: int) -> None:
+    """Set Melee's actual starting stocks, not just the runner's elimination limit."""
+    config_path = Path(console.dolphin_home_path) / "GameSettings" / "GALE01r2.ini"
+    config = config_path.read_text()
+    config = config.replace(
+        "[Gecko_Enabled]\n", "[Gecko_Enabled]\n$Event: Starting Stocks\n", 1,
+    )
+    # Override Slippi's default four-stock setting; retain its other rule bytes.
+    stocks = lives or 4
+    config += f"\n$Event: Starting Stocks\n043D4A4C {stocks:02X}000A00\n"
+    config_path.write_text(config)
+
+
 def stop_dolphin(console: melee.Console) -> None:
     """Stop libmelee safely even if its connection worker never started."""
     worker = console._slippstream._worker
@@ -192,13 +212,68 @@ def is_selectable_character(character: object) -> bool:
     return melee.to_internal(css_id) is character
 
 
-def fighter(value: str) -> tuple[str, melee.Character]:
-    """Parse CONTAINER=CHARACTER. Bot code has no say in its character."""
-    container, _, name = value.partition("=")
+def fighter(value: str) -> tuple[str | None, melee.Character]:
+    """Parse CONTAINER=CHARACTER, or CHARACTER alone for a player without a bot.
+
+    Bot code has no say in its character.
+    """
+    container, equals, name = value.partition("=")
+    if not equals:
+        container, name = None, value
     character = melee.Character.__members__.get(name)
-    if not container or character is None or not is_selectable_character(character):
-        raise argparse.ArgumentTypeError(f"expected CONTAINER=CHARACTER, got {value!r}")
+    if container == "" or character is None or not is_selectable_character(character):
+        raise argparse.ArgumentTypeError(f"expected CONTAINER=CHARACTER or CHARACTER, got {value!r}")
     return container, character
+
+
+def stage_choice(value: str) -> melee.Stage:
+    stage = melee.Stage.__members__.get(value)
+    if stage is None or stage is melee.Stage.NO_STAGE:
+        raise argparse.ArgumentTypeError(f"unknown stage {value!r}")
+    return stage
+
+
+class IdleBot:
+    """A player without a bot. It never presses anything, so it stands still."""
+
+    container = None
+
+    def __init__(self, port: int):
+        self.port = port
+
+    def start(self) -> "IdleBot":
+        return self
+
+    def send(self, gamestate) -> None:
+        pass
+
+    def apply(self, controller, deadline: float) -> None:
+        pass
+
+    def report(self) -> dict:
+        return {"idle": True}
+
+    def close(self) -> None:
+        pass
+
+
+def players_out(gamestate, starting_stocks: dict[int, int], lives: int) -> set[int]:
+    """Players who have lost `lives` stocks. A player missing from a frame tells us nothing."""
+    out = set()
+    for port, start in starting_stocks.items():
+        player = gamestate.players.get(port)
+        if player is not None and (player.stock <= 0 or start - player.stock >= lives):
+            out.add(port)
+    return out
+
+
+def bots_view(gamestate, out: set[int]):
+    """The frame as the bots see it: players who are out are gone, as if eliminated."""
+    if not out:
+        return gamestate
+    view = copy.copy(gamestate)
+    view.players = {port: player for port, player in gamestate.players.items() if port not in out}
+    return view
 
 
 def dispatch_frame(bots, controllers, gamestate) -> None:
@@ -211,8 +286,20 @@ def dispatch_frame(bots, controllers, gamestate) -> None:
         bot.apply(controllers[port], deadline)
 
 
-def match_result(gamestate, bots, time_limit_reached: bool) -> dict:
-    """Summarize a match for the event server; eliminated players may be absent."""
+def bot_trouble(report: dict) -> str | None:
+    """A line for the host's match log if a bot did not play every frame."""
+    missed, crashed, bad = (report.get(key, 0) for key in ("missed_frames", "exceptions", "bad_replies"))
+    if not (missed or crashed or bad):
+        return None
+    last = report.get("last_error") or (report.get("output") or ["none"])[-1]
+    return f"missed {missed} frames, crashed on {crashed}, sent {bad} bad replies. Last error: {last}"
+
+
+def match_result(gamestate, bots, time_limit_reached: bool, out: set[int] = frozenset()) -> dict:
+    """Summarize a match for the event server; eliminated players may be absent.
+
+    Players who are out under --lives cannot win, whatever stocks Melee still gives them.
+    """
     players = {}
     if gamestate is not None:
         for port in bots:
@@ -222,7 +309,7 @@ def match_result(gamestate, bots, time_limit_reached: bool) -> dict:
                 "percent": float(player.percent) if player is not None else 0.0,
             }
     ranked = sorted(
-        (port for port, player in players.items() if player["stock"] > 0),
+        (port for port, player in players.items() if player["stock"] > 0 and port not in out),
         key=lambda port: (-players[port]["stock"], players[port]["percent"]),
     )
     winner = ranked[0] if ranked else None
@@ -242,7 +329,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "fighters", nargs="+", metavar="CONTAINER=CHARACTER", type=fighter,
-        help="Two to four team containers and their characters, in player order",
+        help=(
+            "Two to four team containers and their characters, in player order. "
+            "A character without a container stands still."
+        ),
+    )
+    parser.add_argument(
+        "--stage", type=stage_choice, default=melee.Stage.RANDOM_STAGE,
+        help="Stage to play on, such as BATTLEFIELD (default: RANDOM_STAGE)",
     )
     parser.add_argument(
         "--iso",
@@ -267,9 +361,16 @@ def main() -> int:
         type=float,
         default=DEFAULT_TIME_LIMIT_SECONDS,
         help=(
-            "Stop after this many in-game seconds have elapsed. The default "
-            "is 120 seconds, which stops an 8:00 game when its clock reaches "
-            "6:00. Set to 0 to disable."
+            "Stop after this many in-game seconds have elapsed; the leader "
+            "wins. The default, 0, plays until only one player is left or "
+            "Melee's 8:00 clock runs out."
+        ),
+    )
+    parser.add_argument(
+        "--lives", type=int, default=1,
+        help=(
+            "A player is out after losing this many stocks, and the match ends "
+            "when one player is left. The default is 1; 0 plays four stocks."
         ),
     )
     parser.add_argument(
@@ -287,6 +388,8 @@ def main() -> int:
     args = parser.parse_args()
     if not math.isfinite(args.time_limit):
         parser.error("--time-limit must be a finite number")
+    if args.lives < 0:
+        parser.error("--lives cannot be negative")
     if not 2 <= len(args.fighters) <= 4:
         parser.error("give 2 to 4 fighters")
     if len({character for _, character in args.fighters}) != len(args.fighters):
@@ -300,11 +403,11 @@ def main() -> int:
     # its own state. The host assigned the characters, so they are fixed here.
     fighters = dict(enumerate(args.fighters, start=1))
     bots = {
-        port: ContainerBot(container, port).start()
+        port: ContainerBot(container, port).start() if container else IdleBot(port)
         for port, (container, _) in fighters.items()
     }
     characters = {port: character for port, (_, character) in fighters.items()}
-    stage = melee.Stage.RANDOM_STAGE
+    stage = args.stage
 
     recorder = None
     console = None
@@ -330,6 +433,7 @@ def main() -> int:
         configure_render_to_main(
             console, legacy_macos_fallback=sys.platform == "darwin" and args.gfx_backend is None,
         )
+        configure_match_stocks(console, args.lives)
 
         controllers = {
             port: melee.Controller(
@@ -372,6 +476,9 @@ def main() -> int:
     time_limit_reached = False
     frame_dump_checked = False
     last_game_frame = None
+    starting_stocks: dict[int, int] = {}
+    out: set[int] = set()
+    end_frame = None
 
     def stop(*_args) -> None:
         raise KeyboardInterrupt
@@ -383,7 +490,7 @@ def main() -> int:
         if recorder is not None:
             print(f"Recording to: {recorder.path}", flush=True)
         for port, bot in bots.items():
-            print(f"Player {port} bot: {bot.container}")
+            print(f"Player {port} bot: {bot.container or 'none, stands still'}")
         print(f"Selected stage: {stage.name}")
         print(f"Starting Dolphin with {iso_path}")
         console.run(iso_path=str(iso_path))
@@ -439,6 +546,13 @@ def main() -> int:
                             file=sys.stderr,
                         )
                         return 1
+                    if stage is not melee.Stage.RANDOM_STAGE and gamestate.stage is not stage:
+                        # Still playable, but not the stage the kids prompted for.
+                        print(
+                            f"Warning: the game is on {gamestate.stage.name}, not {stage.name}.",
+                            file=sys.stderr,
+                        )
+                    starting_stocks = {port: int(gamestate.players[port].stock) for port in bots}
                     participants_checked = True
 
                 # Stop early rather than silently losing a whole match if the
@@ -447,6 +561,21 @@ def main() -> int:
                     recorder.check_frames()
                     frame_dump_checked = True
 
+                # Track eliminated players and finish when only one remains.
+                if end_frame is not None:
+                    if gamestate.frame >= end_frame:
+                        break
+                elif args.lives:
+                    for port in sorted(players_out(gamestate, starting_stocks, args.lives) - out):
+                        print(f"Player {port} is out.")
+                        out.add(port)
+                    still_in = [port for port in bots if port not in out]
+                    if len(still_in) <= 1:
+                        print("Last player standing: " + (
+                            f"Player {still_in[0]} wins." if still_in else "everyone is out, so nobody wins."
+                        ))
+                        end_frame = gamestate.frame + END_GRACE_FRAMES
+
                 # There is no HUD-timer field in libmelee's GameState.  Use
                 # the Slippi in-game frame index instead; unlike a wall-clock
                 # timeout, this does not count menu time or slow Dolphin time.
@@ -454,11 +583,12 @@ def main() -> int:
                 # normal game has already reached its own time limit.
                 if (
                     gamestate.menu_state == melee.Menu.IN_GAME
+                    and end_frame is None
                     and time_limit_frames is not None
                     and gamestate.frame >= time_limit_frames
                 ):
                     time_limit_reached = True
-                    winner = winner_at_time_limit(gamestate, bots)
+                    winner = winner_at_time_limit(gamestate, [port for port in bots if port not in out])
                     remaining = format_clock(time_left_seconds(gamestate.frame))
                     if any(port not in gamestate.players for port in bots):
                         print(
@@ -491,17 +621,21 @@ def main() -> int:
                     controller.release_all()
 
                 # All bots observe the same frame before the next step(). An
-                # eliminated player may no longer appear in the game state.
-                dispatch_frame(bots, controllers, gamestate)
+                # eliminated player may no longer appear in the game state,
+                # and a player who is out gets no inputs, so they stand still.
+                playing = {port: bot for port, bot in bots.items() if port not in out}
+                dispatch_frame(playing, controllers, bots_view(gamestate, out))
             elif match_started:
                 # The live libmelee menu parser does not currently emit
                 # POSTGAME_SCORES. After the match, its first menu event is
                 # normally MAIN_MENU or STAGE_SELECT. Any transition out of
                 # gameplay after we have seen IN_GAME means this round is over.
                 # Stop before MenuHelper can press START or select another map.
+                winner = match_result(last_game_frame, bots, False, out)["winner_port"]
                 print(
-                    "Match finished; stopping Dolphin "
-                    f"(next state: {gamestate.menu_state.name})."
+                    "Match finished: "
+                    + (f"Player {winner} wins" if winner is not None else "no winner")
+                    + f". Stopping Dolphin (next state: {gamestate.menu_state.name})."
                 )
                 break
             else:
@@ -517,6 +651,9 @@ def main() -> int:
     except KeyboardInterrupt:
         print("\nInterrupted.")
         return 130
+    except EnetDisconnected:
+        print("Dolphin was closed, so the match ended early.")
+        return 130
     except RecordingError as exc:
         recording_failed = True
         print(f"Recording error: {exc}", file=sys.stderr)
@@ -524,11 +661,14 @@ def main() -> int:
     finally:
         # A second Ctrl-C must not interrupt Dolphin cleanup or video saving.
         signal.signal(signal.SIGINT, signal.SIG_IGN)
-        for bot in bots.values():
+        for port, bot in bots.items():
             bot.close()
+            trouble = bot_trouble(bot.report())
+            if trouble:
+                print(f"Player {port} bot {trouble}")
         if args.result_file is not None and match_started:
             args.result_file.write_text(
-                json.dumps(match_result(last_game_frame, bots, time_limit_reached))
+                json.dumps(match_result(last_game_frame, bots, time_limit_reached, out))
             )
         cleanup_error = None
         dolphin_stopped = False

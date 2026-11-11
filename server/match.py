@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 import signal
 import sys
@@ -16,15 +17,21 @@ from server.db import ROOT
 MATCH_DIR = ROOT / "data" / "matches"
 
 
-def runner_command(teams: list[dict], settings: dict, result_file: Path) -> list[str]:
+def runner_command(teams: list[dict], settings: dict, result_file: Path | None, *,
+                   stage: str, demo: bool = False) -> list[str]:
+    """A demo gives the runner only characters, so no bot starts and every player stands still."""
     command = [
         sys.executable, str(ROOT / "runner.py"),
-        *(f"{container_name(team['id'])}={team['character']}" for team in teams),
-        "--time-limit", str(settings["match_seconds"]),
+        *(team["character"] if demo else f"{container_name(team['id'])}={team['character']}" for team in teams),
+        "--stage", stage,
+        "--time-limit", str(settings["time_limit_seconds"]),
+        "--lives", str(settings["lives"]),
         "--iso", settings["iso_path"],
-        "--result-file", str(result_file),
     ]
-    if not settings["record_replays"]:
+    if result_file is not None:
+        command.extend(("--result-file", str(result_file)))
+    # Demos are not recorded, so the replays are only real matches.
+    if demo or not settings["record_replays"]:
         command.append("--no-record")
     return command
 
@@ -48,6 +55,8 @@ class MatchRunner:
     async def run(self, command: list[str], on_line: Callable[[str], Awaitable[None]]) -> int:
         self.process = await asyncio.create_subprocess_exec(
             *command, cwd=ROOT, limit=1 << 20,
+            # Otherwise the host's log lags behind and shows a stale step.
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
         )
         try:

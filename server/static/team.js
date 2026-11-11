@@ -79,9 +79,16 @@ function statusText(s) {
       return { mood: "open", label: `ROUND ${s.round}`, title: "PROMPT TIME", text: "Everything you type is saved by itself. When the time is up, the AI starts coding." };
     case "coding":
       return { mood: "closed", label: `ROUND ${s.round} CLOSED`, title: running ? "AI IS CODING" : "BOT FINISHED", text: "No more changes to this round's prompt." };
-    case "ready":
+    case "ready": {
+      const last = s.scores.last;
+      if (last && last.round === s.round) {
+        const title = last.won ? "YOU WON!" : last.winner ? `${last.winner.toUpperCase()} WON!` : "NOBODY WON";
+        return { mood: "fight", label: `ROUND ${s.round} MATCH`, title, text: "Read your code and plan your next idea." };
+      }
       return { mood: "closed", label: `ROUND ${s.round} CLOSED`, title: "BOTS READY", text: "No more changes to this round's prompt. Read your code and plan your next idea." };
+    }
     case "fighting":
+      if (s.demo) return { mood: "fight", label: "DEMO", title: "WATCH!", text: "Nobody has told the bots what to do yet, so they just stand there. Your prompt changes that!" };
       return { mood: "fight", label: s.round ? `ROUND ${s.round} CLOSED` : "TEST MATCH", title: "FIGHT!", text: "Watch the big screen!" };
     default:
       return { mood: "wait", label: "", title: "", text: "" };
@@ -119,6 +126,8 @@ function renderState(s) {
     setSaveState(s.round ? "ROUND CLOSED" : "NOT OPEN YET");
   }
   updateCount();
+  renderStage(s.stage);
+  renderScores(s.scores);
   renderStartChoice(s);
   renderAgent(s);
   renderCode(s);

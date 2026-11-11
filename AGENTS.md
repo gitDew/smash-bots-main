@@ -22,7 +22,9 @@ Always use python3 on the CLI.
 - `server/chat.py`: the helper chat. It has no tools and returns only text.
 - `sandbox/`: the image for the per-team containers, which have no network. Bots
   also run there during matches: the runner sends game state in and gets back
-  only validated input commands (`container_bot.py`).
+  only validated input commands (`container_bot.py`). After changing anything
+  in `sandbox/`, rebuild the image; the server then replaces outdated team
+  containers by itself and keeps their bots.
 
 Team code must never be imported or run on the host during the event.
 
@@ -37,12 +39,21 @@ Team code must never be imported or run on the host during the event.
 - Sends each game frame to the bots and applies their validated inputs.
 - Stops after the match.
 
-It takes each container and its character in player order. Matches are
-free-for-alls, not a two-versus-two team mode.
+It takes each container and its character in player order, and the stage with
+`--stage`. A character without a container has no bot and stands still; the
+admin page's demo match uses only those. Matches are free-for-alls, not a
+two-versus-two team mode.
 
 ```sh
-python3 runner.py smash-team-1=FOX smash-team-2=MARTH
+python3 runner.py smash-team-1=FOX smash-team-2=MARTH --stage BATTLEFIELD
+python3 runner.py FOX MARTH --stage BATTLEFIELD --no-record   # nobody moves
 ```
+
+## Stages
+
+The host picks each round's prompt time and stage when opening it. The stages
+are listed in `server/stages.py`, which also draws the map the kids see on
+their phones from libmelee's own stage numbers.
 
 The macOS arena uses the project-local Slippi Mainline beta; install it with
 `./install_dolphin.sh`.

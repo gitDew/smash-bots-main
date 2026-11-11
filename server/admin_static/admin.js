@@ -9,6 +9,7 @@ const MOODS = { setup: "wait", prompting: "open", coding: "closed", ready: "clos
 
 let state = null;
 let settingsFilled = false;
+let roundFormFilled = false;
 const clock = createClock($("status-clock"));
 const selected = new Set();
 const feeds = new Map();
@@ -178,19 +179,58 @@ function teamRow(team, phase) {
 function updateButtons() {
   if (!state) return;
   const { phase } = state;
-  $("open-round").disabled = !["setup", "ready"].includes(phase);
+  const between = ["setup", "ready"].includes(phase);
+  // While a round runs, the form keeps showing that round's choices.
+  ["open-round", "round-minutes", "round-stage"].forEach((id) => { $(id).disabled = !between; });
   $("close-round").disabled = phase !== "prompting";
   $("add-time").disabled = phase !== "prompting";
-  $("start-match").disabled = !["setup", "ready"].includes(phase) || selected.size < 2 || selected.size > 4;
+  $("start-match").disabled = !between || selected.size < 2 || selected.size > 4;
+  $("demo-match").disabled = $("start-match").disabled;
   $("stop-match").disabled = phase !== "fighting";
   $("reset").disabled = ["coding", "fighting"].includes(phase);
+}
+
+function fillRoundForm(s) {
+  const stages = Object.values(s.stages);
+  $("round-stage").replaceChildren(...stages.map((stage) => el("option", { value: stage.id, textContent: stage.name })));
+  $("round-stage").value = s.stage in s.stages ? s.stage : stages[0].id;
+  // To the nearest half minute, which is what the box accepts.
+  $("round-minutes").value = Math.max(0.5, Math.round(s.settings.prompt_seconds / 30) / 2);
+  showPickedStage();
+  roundFormFilled = true;
+}
+
+function pickedStage() {
+  return state.stages[$("round-stage").value];
+}
+
+function showPickedStage() {
+  const stage = pickedStage();
+  $("round-stage-map").src = stage.image;
+  $("round-stage-map").alt = `Map of ${stage.name}`;
+  $("round-stage-about").textContent = stage.about;
+}
+
+function showStageDialog() {
+  const stage = pickedStage();
+  $("stage-dialog-title").textContent = stage.name.toUpperCase();
+  $("stage-dialog-map").src = stage.image;
+  $("stage-dialog-map").alt = `Map of ${stage.name}`;
+  $("stage-dialog-about").textContent = stage.about;
+  $("stage-dialog").showModal();
+}
+
+function matchStageText(s) {
+  if (s.stages[s.stage]) return `Matches this round are on ${s.stages[s.stage].name}.`;
+  return "Until a round has opened, matches use the stage picked under NEXT ROUND.";
 }
 
 function render(s) {
   state = s;
   $("status").dataset.mood = MOODS[s.phase];
-  $("status-label").textContent = s.round ? `ROUND ${s.round}` : "BEFORE ROUND 1";
-  $("status-title").textContent = PHASE_TITLES[s.phase];
+  const roundStage = s.round && s.stages[s.stage] ? ` · ${s.stages[s.stage].name.toUpperCase()}` : "";
+  $("status-label").textContent = s.round ? `ROUND ${s.round}${roundStage}` : "BEFORE ROUND 1";
+  $("status-title").textContent = s.demo ? "DEMO RUNNING" : PHASE_TITLES[s.phase];
   clock.set(s.remaining);
 
   const problems = [];
@@ -209,11 +249,14 @@ function render(s) {
   $("match-log").textContent = s.match_log.length ? `${s.match_log.join("\n")}\n` : "";
   $("match-log").scrollTop = $("match-log").scrollHeight;
   $("matches").replaceChildren(...s.matches.map((match) => el("p", {
-    textContent: `Round ${match.round}: ${match.teams.join(" vs ")}. ${match.status}${match.winner ? `, winner ${match.winner}` : ""}`,
+    textContent: `Round ${match.round}${match.stage ? ` on ${match.stage}` : ""}: ${match.teams.join(" vs ")}. ${match.status}${match.winner ? `, winner ${match.winner}` : ""}`,
   })));
+  $("match-stage").textContent = matchStageText(s);
+  renderScores(s.scores);
 
   $("chat-stats").textContent = `${s.chat.phones} phones connected. ${s.chat.questions} questions answered this round.`;
   if (!settingsFilled) fillSettings(s.settings);
+  if (!roundFormFilled) fillRoundForm(s);
   updateButtons();
 }
 
@@ -329,10 +372,22 @@ $("llm-test").onclick = async () => {
 $("forget-key").onclick = () => {
   if (window.confirm("Remove the saved Azure API key?")) api("PUT", "/api/settings", { azure_api_key: "" });
 };
-$("open-round").onclick = () => api("POST", "/api/round/open");
+$("round-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const seconds = Math.round(Number($("round-minutes").value) * 60);
+  api("POST", "/api/round/open", { seconds, stage: $("round-stage").value });
+});
+$("round-stage").onchange = showPickedStage;
+$("show-stage").onclick = showStageDialog;
+$("show-scores").onclick = () => {
+  $("scores-dialog-last").textContent = $("scores-last").textContent;
+  $("scores-dialog-list").replaceChildren(...[...$("scores-list").children].map((item) => item.cloneNode(true)));
+  $("scores-dialog").showModal();
+};
 $("close-round").onclick = () => api("POST", "/api/round/close");
 $("add-time").onclick = () => api("POST", "/api/round/add-time", { seconds: 60 });
-$("start-match").onclick = () => api("POST", "/api/match/start", { team_ids: [...selected] });
+$("start-match").onclick = () => api("POST", "/api/match/start", { team_ids: [...selected], stage: $("round-stage").value });
+$("demo-match").onclick = () => api("POST", "/api/match/start", { team_ids: [...selected], stage: $("round-stage").value, demo: true });
 $("stop-match").onclick = () => api("POST", "/api/match/stop");
 $("chat-qr").onclick = () => showQr("HELPER CHAT", "/api/chat/qr", state.chat.link);
 $("chat-copy").onclick = () => navigator.clipboard.writeText(state.chat.link);

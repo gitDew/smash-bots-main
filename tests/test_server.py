@@ -12,8 +12,10 @@ import time
 from types import SimpleNamespace as NS
 import unittest
 from unittest.mock import patch
+from xml.etree import ElementTree
 
 from fastapi.testclient import TestClient
+import melee
 from openai.types.responses import (
     Response, ResponseFunctionToolCall, ResponseOutputMessage, ResponseOutputText, ResponseReasoningItem,
 )
@@ -22,12 +24,15 @@ from openai.types.responses.response import IncompleteDetails
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from server.app import create_admin_app, create_team_app
 from server.chat import ChatRejected
+from server.containers import Docker
 from server.db import Database
 from server.event import Event, EventError, RoundClosed
 from server.hub import Hub
 from server.llm import azure_base_url, azure_client
 from server.llm_check import CODE_WORD, run_checks
 from server.match import runner_command
+from server.stages import STAGES, SVGS
+import runner
 
 
 class FakeDocker:
@@ -330,7 +335,7 @@ class AgentTests(EventCase):
     async def test_earlier_prompts_and_crashes_reach_the_next_round(self):
         self.client.responses.script = [reply("ok"), reply("ok")]
         await self.run_round(prompt="first idea")
-        match = self.db.add_match(1, [self.team_id])
+        match = self.db.add_match(1, [self.team_id], "BATTLEFIELD")
         self.db.finish_match(match, "finished", {
             "bots": {str(self.team_id): {"exceptions": 3, "missed_frames": 0, "last_error": "KeyError: 2"}},
         }, "")
@@ -688,6 +693,181 @@ class StartChoiceTests(EventCase):
         self.assertTrue(any("sneaky" in v["code"] for v in self.db.versions(self.team_id)))
 
 
+class FakeMatchRunner:
+    def __init__(self):
+        self.commands: list[list[str]] = []
+        self.gate: asyncio.Event | None = None
+
+    async def run(self, command, on_line):
+        self.commands.append(command)
+        if self.gate is not None:
+            await self.gate.wait()
+        await on_line("Arena finished after one match.")
+        return 0
+
+
+class StageTests(EventCase):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.other = await self.event.add_team("Lightning", "MARTH")
+        self.both = [self.team_id, self.other["id"]]
+        self.event.match_runner = FakeMatchRunner()
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        iso = Path(directory.name) / "game.iso"
+        iso.touch()
+        self.db.update_settings({"iso_path": str(iso)})
+        match_dir = patch("server.event.MATCH_DIR", Path(directory.name) / "matches")
+        match_dir.start()
+        self.addCleanup(match_dir.stop)
+
+    async def play_round(self, seconds=90, stage="DREAMLAND"):
+        await self.event.open_round(seconds, stage)
+        await self.event.close_round()
+        await self.finish_background()
+
+    def runner_stage(self):
+        command = self.event.match_runner.commands[-1]
+        return command[command.index("--stage") + 1]
+
+    async def test_the_host_picks_the_time_and_stage_for_each_round(self):
+        await self.event.open_round(90, "FINAL_DESTINATION")
+        self.assertEqual(self.db.event()["stage"], "FINAL_DESTINATION")
+        self.assertAlmostEqual(self.db.event()["deadline"] - time.time(), 90, delta=2)
+        await self.event.close_round()
+        await self.finish_background()
+        await self.event.open_round(600, "YOSHIS_STORY")
+        self.assertEqual(self.db.event()["stage"], "YOSHIS_STORY")
+        self.assertAlmostEqual(self.db.event()["deadline"] - time.time(), 600, delta=2)
+
+    async def test_left_out_choices_are_the_same_as_last_round(self):
+        await self.play_round(90, "POKEMON_STADIUM")
+        await self.event.open_round()
+        self.assertEqual(self.db.event()["stage"], "POKEMON_STADIUM")
+        self.assertAlmostEqual(self.db.event()["deadline"] - time.time(), 90, delta=2)
+
+    async def test_an_unknown_stage_or_time_opens_nothing(self):
+        for seconds, stage in ((90, "MUTE_CITY"), (90, "NO_STAGE"), (90, "RANDOM_STAGE"),
+                               (5, "BATTLEFIELD"), (99999, "BATTLEFIELD")):
+            with self.subTest(seconds=seconds, stage=stage), self.assertRaises(EventError):
+                await self.event.open_round(seconds, stage)
+        self.assertEqual(self.db.event(), {"phase": "setup", "round": 0, "deadline": None, "stage": None})
+
+    async def test_kids_see_the_stage_once_the_round_opens(self):
+        self.assertIsNone(self.event.team_state(self.team)["stage"])
+        self.assertIsNone(self.event.chat_state(SESSION)["stage"])
+        await self.event.open_round(90, "POKEMON_STADIUM")
+        for state in (self.event.team_state(self.team), self.event.chat_state(SESSION)):
+            self.assertEqual(state["stage"]["name"], "Pokémon Stadium")
+            self.assertEqual(state["stage"]["image"], "/stages/POKEMON_STADIUM.svg")
+        self.assertIn("FINAL_DESTINATION", self.event.admin_state()["stages"])
+
+    async def test_the_agent_and_the_helper_are_told_the_stage(self):
+        await self.event.open_round(90, "FOUNTAIN_OF_DREAMS")
+        self.event.save_prompt(self.team_id, "jump on the platforms")
+        self.client.responses.script = [reply("ok"), ["Watch the moving platforms!"]]
+        await self.event.close_round()
+        await self.finish_background()
+        self.assertIn("melee.Stage.FOUNTAIN_OF_DREAMS", self.client.responses.requests[0]["input"][0]["content"])
+        self.event.admit_question(SESSION, "Which stage is it?")
+        await self.finish_background()
+        self.assertIn("Fountain of Dreams", self.client.responses.requests[1]["instructions"])
+
+    async def test_a_match_is_played_on_its_rounds_stage(self):
+        await self.play_round(stage="DREAMLAND")
+        await self.event.start_match(self.both, "BATTLEFIELD")
+        await self.finish_background()
+        self.assertEqual(self.runner_stage(), "DREAMLAND")
+        self.assertEqual(self.db.matches()[0]["stage"], "DREAMLAND")
+        self.assertEqual(self.event.admin_state()["matches"][0]["stage"], "Dream Land")
+        self.assertEqual(sorted(self.docker.restarted), sorted(self.both))
+
+    async def test_a_test_match_before_round_one_uses_the_picked_stage(self):
+        await self.event.start_match(self.both, "YOSHIS_STORY")
+        await self.finish_background()
+        self.assertEqual(self.runner_stage(), "YOSHIS_STORY")
+        with self.assertRaises(EventError):
+            await self.event.start_match(self.both, "MUTE_CITY")
+
+    async def test_a_demo_has_no_bots_and_leaves_no_record(self):
+        await self.play_round(stage="DREAMLAND")
+        self.event.match_runner.gate = asyncio.Event()
+        await self.event.start_match(self.both, "FINAL_DESTINATION", demo=True)
+        self.assertTrue(self.event.team_state(self.team)["demo"])
+        self.assertTrue(self.event.chat_state(SESSION)["demo"])
+        self.event.match_runner.gate.set()
+        await self.finish_background()
+        command = self.event.match_runner.commands[-1]
+        self.assertEqual(command[2:4], ["FOX", "MARTH"])
+        self.assertEqual(self.runner_stage(), "FINAL_DESTINATION")
+        self.assertIn("--no-record", command)
+        self.assertEqual(self.docker.restarted, [])
+        self.assertEqual(self.db.matches(), [])
+        self.assertFalse(self.event.admin_state()["demo"])
+        self.assertEqual(self.db.event()["phase"], "ready")
+        self.assertEqual(self.db.event()["stage"], "DREAMLAND")
+
+    def add_match(self, round_number, status, winner, team_ids=None):
+        match = self.db.add_match(round_number, team_ids or self.both, "BATTLEFIELD")
+        self.db.finish_match(match, status, {"winner_team": winner, "players": {}, "bots": {}}, "")
+
+    async def test_only_matches_that_end_by_themselves_in_a_round_count(self):
+        self.add_match(0, "finished", self.team_id)           # test match before round 1
+        self.add_match(1, "finished", self.other["id"])
+        self.add_match(1, "stopped", self.team_id)            # the host stopped it
+        self.add_match(2, "failed", self.team_id)
+        self.add_match(2, "finished", self.other["id"])
+        self.add_match(2, "finished", None)                   # a tie
+        table = self.event.scores()["table"]
+        self.assertEqual([(row["name"], row["wins"], row["played"]) for row in table],
+                         [("Lightning", 2, 3), ("Thunder", 0, 3)])
+        self.assertEqual(table[0]["character"], "Marth")
+
+    async def test_kids_see_who_won_the_last_match(self):
+        self.assertEqual(self.event.team_state(self.team)["scores"]["last"], None)
+        self.add_match(1, "finished", self.team_id)
+        mine = self.event.team_state(self.team)["scores"]["last"]
+        self.assertEqual((mine["winner"], mine["won"], mine["stage"]), ("Thunder", True, "Battlefield"))
+        theirs = self.event.team_state(self.db.team(self.other["id"]))["scores"]["last"]
+        self.assertFalse(theirs["won"])
+        self.assertEqual(self.event.chat_state(SESSION)["scores"]["last"]["winner"], "Thunder")
+        self.add_match(1, "stopped", self.other["id"])
+        self.assertEqual(self.event.team_state(self.team)["scores"]["last"]["winner"], "Thunder")
+
+    async def test_a_stopped_match_shows_no_winner_to_the_host(self):
+        self.add_match(1, "stopped", self.team_id)
+        self.add_match(1, "finished", self.other["id"])
+        winners = [match["winner"] for match in self.event.admin_state()["matches"]]
+        self.assertEqual(winners, ["Lightning", None])
+
+    async def test_a_match_with_no_time_limit_is_started_without_one(self):
+        await self.play_round()
+        await self.event.start_match(self.both)
+        await self.finish_background()
+        command = self.event.match_runner.commands[-1]
+        self.assertEqual(command[command.index("--time-limit") + 1], "0")
+        self.assertEqual(self.db.matches()[0]["status"], "finished")
+
+    async def test_reset_forgets_the_stage(self):
+        await self.play_round()
+        await self.event.reset()
+        self.assertIsNone(self.db.event()["stage"])
+
+
+class StageMapTests(unittest.TestCase):
+    def test_every_stage_can_be_played_and_has_a_map(self):
+        for stage in STAGES:
+            with self.subTest(stage=stage):
+                self.assertIs(runner.stage_choice(stage), melee.Stage[stage])
+                self.assertTrue(ElementTree.fromstring(SVGS[stage]).tag.endswith("svg"))
+
+    def test_maps_use_the_games_own_numbers(self):
+        for label in (">x=-68<", ">x=68<", ">y=27<", ">y=54<"):
+            self.assertIn(label, SVGS["BATTLEFIELD"])
+        self.assertNotIn(">y=", SVGS["FINAL_DESTINATION"])
+        self.assertIn(">moves<", SVGS["FOUNTAIN_OF_DREAMS"])
+
+
 class HttpTests(unittest.TestCase):
     def setUp(self):
         self.db = _thread_safe_memory_db()
@@ -714,10 +894,35 @@ class HttpTests(unittest.TestCase):
 
     def test_settings_are_validated(self):
         headers = {"X-Smash-Admin": "1"}
-        self.assertEqual(self.admin.put("/api/settings", json={"prompt_seconds": 1}, headers=headers).status_code, 422)
+        for limit in (-1, 9999):
+            self.assertEqual(self.admin.put("/api/settings", json={"time_limit_seconds": limit}, headers=headers).status_code, 422)
         self.assertEqual(self.admin.put("/api/settings", json={"public_url": "ftp://x"}, headers=headers).status_code, 409)
-        self.assertEqual(self.admin.put("/api/settings", json={"prompt_seconds": 90}, headers=headers).status_code, 200)
-        self.assertEqual(self.db.settings()["prompt_seconds"], 90)
+        self.assertEqual(self.admin.put("/api/settings", json={"time_limit_seconds": 90}, headers=headers).status_code, 200)
+        self.assertEqual(self.db.settings()["time_limit_seconds"], 90)
+        self.assertEqual(self.db.settings()["lives"], 1)
+        for lives in (0, 5):
+            self.assertEqual(self.admin.put("/api/settings", json={"lives": lives}, headers=headers).status_code, 422)
+        self.assertEqual(self.admin.put("/api/settings", json={"lives": 2}, headers=headers).status_code, 200)
+
+    def test_opening_a_round_needs_a_time_and_a_stage(self):
+        headers = {"X-Smash-Admin": "1"}
+        for body in ({}, {"seconds": 5, "stage": "BATTLEFIELD"}, {"seconds": 120}):
+            self.assertEqual(self.admin.post("/api/round/open", json=body, headers=headers).status_code, 422, body)
+        refused = self.admin.post("/api/round/open", json={"seconds": 120, "stage": "MUTE_CITY"}, headers=headers)
+        self.assertEqual(refused.status_code, 409)
+        self.assertEqual(self.db.event()["phase"], "setup")
+        opened = self.admin.post("/api/round/open", json={"seconds": 120, "stage": "DREAMLAND"}, headers=headers)
+        self.assertEqual(opened.status_code, 200)
+        self.assertEqual(self.db.event()["stage"], "DREAMLAND")
+
+    def test_both_sites_serve_the_stage_maps(self):
+        for client in (self.teams, self.admin):
+            response = client.get("/stages/YOSHIS_STORY.svg")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers["content-type"], "image/svg+xml")
+            self.assertIn("Map of Yoshi's Story", response.text)
+            self.assertEqual(client.get("/stages/NO_STAGE.svg").status_code, 404)
+            self.assertEqual(client.get("/stages/..%2Fapp.py.svg").status_code, 404)
 
     def test_socket_shows_only_this_teams_state(self):
         other = self.db.add_team("Other", "DK")
@@ -888,6 +1093,66 @@ class MigrationTests(unittest.TestCase):
             db.conn.close()
             Database(path).conn.close()
 
+    def test_a_database_from_before_stages_keeps_its_rounds_and_matches(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "event.sqlite3"
+            old = sqlite3.connect(path)
+            old.executescript(
+                "CREATE TABLE event (id INTEGER PRIMARY KEY CHECK (id = 1), phase TEXT NOT NULL,"
+                " round INTEGER NOT NULL, deadline REAL);"
+                "INSERT INTO event VALUES (1, 'ready', 2, NULL);"
+                "CREATE TABLE matches (id INTEGER PRIMARY KEY AUTOINCREMENT, round INTEGER NOT NULL,"
+                " team_ids TEXT NOT NULL, status TEXT NOT NULL, result TEXT, log TEXT NOT NULL DEFAULT '',"
+                " started_at REAL NOT NULL, finished_at REAL);"
+                "INSERT INTO matches (round, team_ids, status, started_at) VALUES (1, '[1, 2]', 'finished', 1);"
+            )
+            old.close()
+            db = Database(path)
+            self.assertEqual(db.event(), {"phase": "ready", "round": 2, "deadline": None, "stage": None})
+            self.assertIsNone(db.matches()[0]["stage"])
+            db.conn.close()
+
+    def test_an_old_fixed_match_length_no_longer_cuts_matches_short(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "event.sqlite3"
+            Database(path).update_settings({"match_seconds": 120})
+            db = Database(path)
+            self.assertNotIn("match_seconds", db.settings())
+            self.assertEqual(db.settings()["time_limit_seconds"], 0)
+            db.conn.close()
+
+
+class DockerTests(unittest.IsolatedAsyncioTestCase):
+    async def ensure(self, container):
+        """container is None when missing, else (image id, running)."""
+        calls = []
+
+        async def fake_docker(*args, stdin=None, timeout=60.0):
+            calls.append(args)
+            if args[0] == "inspect":
+                if container is None:
+                    return 1, b"", b"No such object"
+                return 0, f"{container[0]} {container[1]}\n".encode(), b""
+            if args[:2] == ("image", "inspect"):
+                return 0, b"sha256:new\n", b""
+            return 0, b"", b""
+
+        docker = Docker()
+        docker._docker = fake_docker
+        await docker.ensure(4)
+        return calls
+
+    async def test_a_container_from_an_older_image_is_replaced_but_keeps_its_bot(self):
+        calls = await self.ensure(("sha256:old", "true"))
+        self.assertEqual([call[0] for call in calls], ["inspect", "image", "rm", "run"])
+        self.assertEqual(calls[2], ("rm", "-f", "smash-team-4"))
+        self.assertIn("smash-team-4-workspace:/workspace", calls[3])
+
+    async def test_a_current_container_is_kept(self):
+        self.assertEqual([c[0] for c in await self.ensure(("sha256:new", "true"))], ["inspect", "image"])
+        self.assertEqual([c[0] for c in await self.ensure(("sha256:new", "false"))], ["inspect", "image", "start"])
+        self.assertEqual([c[0] for c in await self.ensure(None)], ["inspect", "run"])
+
 
 class ConnectionCheckTests(unittest.IsolatedAsyncioTestCase):
     def client(self, *script):
@@ -951,10 +1216,22 @@ class ConnectionCheckTests(unittest.IsolatedAsyncioTestCase):
 
 class SmallHelpers(unittest.TestCase):
     def test_runner_command_lists_containers_in_player_order(self):
-        settings = {"match_seconds": 90, "iso_path": "/game.iso", "record_replays": False}
+        settings = {"time_limit_seconds": 0, "lives": 1, "iso_path": "/game.iso", "record_replays": False}
         teams = [{"id": 3, "character": "FOX"}, {"id": 7, "character": "MARTH"}]
-        command = runner_command(teams, settings, Path("/result.json"))
+        command = runner_command(teams, settings, Path("/result.json"), stage="DREAMLAND")
+        self.assertEqual(command[command.index("--time-limit") + 1], "0")
+        self.assertEqual(command[command.index("--lives") + 1], "1")
         self.assertEqual(command[2:4], ["smash-team-3=FOX", "smash-team-7=MARTH"])
+        self.assertEqual(command[command.index("--stage") + 1], "DREAMLAND")
+        self.assertIn("--no-record", command)
+
+    def test_a_demo_starts_no_bots_and_is_not_recorded(self):
+        settings = {"time_limit_seconds": 0, "lives": 1, "iso_path": "/game.iso", "record_replays": True}
+        teams = [{"id": 3, "character": "FOX"}, {"id": 7, "character": "MARTH"}]
+        command = runner_command(teams, settings, None, stage="BATTLEFIELD", demo=True)
+        self.assertEqual(command[2:4], ["FOX", "MARTH"])
+        self.assertNotIn("smash-team", " ".join(command))
+        self.assertNotIn("--result-file", command)
         self.assertIn("--no-record", command)
 
     def test_client_needs_both_the_url_and_the_key(self):

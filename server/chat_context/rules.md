@@ -52,7 +52,15 @@ class Bot:
 
 ## The match
 
-- A match has two to four bots, on a random stage.
-- The winner is whoever has the most stocks when the time runs out. Ties are
-  broken by the lowest damage percentage.
+- A match has two to four bots. The host picks the stage for each round, and
+  the kids see a map of it. The stage can be different next round, so a bot
+  should look at `gamestate.stage` and use `melee.stages` (edges, platforms,
+  blast zones) instead of numbers that only fit one stage.
+- Each player gets a set number of lives, usually just one; the host picks it.
+  Melee starts each player with that many stocks. A player who has lost all
+  their lives is out and is gone from `gamestate.players`. The match
+  ends when only one player is still in, and that player wins. Staying on the
+  stage matters as much as knocking others off.
+- If the host set a time limit and it runs out first, the player with the most
+  stocks wins. Ties are broken by the lowest damage percentage.
 - Stick values go from 0.0 to 1.0, and 0.5 is the middle.

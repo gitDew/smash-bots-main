@@ -26,6 +26,38 @@ function createClock(element) {
   };
 }
 
+// The round's stage, so the kids know what they are prompting for.
+function renderStage(stage) {
+  $("stage-card").hidden = !stage;
+  if (!stage) return;
+  $("stage-name").textContent = `THIS ROUND'S STAGE: ${stage.name.toUpperCase()}`;
+  if ($("stage-map").getAttribute("src") !== stage.image) $("stage-map").src = stage.image;
+  $("stage-map").alt = `Map of ${stage.name}`;
+  $("stage-about").textContent = stage.about;
+}
+
+function lastMatchText(last) {
+  const where = `round ${last.round}${last.stage ? ` on ${last.stage}` : ""}`;
+  return last.winner ? `Last match, ${where}: ${last.winner} won!` : `Last match, ${where}: nobody won.`;
+}
+
+// Wins so far. Pages for the kids hide it until a match has counted.
+function renderScores(scores) {
+  const played = scores.table.some((row) => row.played > 0);
+  if ($("scores-card")) $("scores-card").hidden = !played;
+  $("scores-last").textContent = scores.last ? lastMatchText(scores.last) : "No match has counted yet.";
+  $("scores-list").replaceChildren(...(played ? scores.table : []).map((row) => {
+    const item = document.createElement("li");
+    const name = document.createElement("b");
+    name.textContent = row.name;
+    const character = row.character ? ` (${row.character})` : "";
+    const wins = `${row.wins} ${row.wins === 1 ? "win" : "wins"}`;
+    const matches = `${row.played} ${row.played === 1 ? "match" : "matches"}`;
+    item.append(name, `${character}: ${wins} in ${matches}`);
+    return item;
+  }));
+}
+
 function inlineMarkdown(target, text) {
   text.split(/(`[^`]+`|\*\*[^*]+\*\*)/).forEach((part) => {
     if (part.startsWith("`")) {

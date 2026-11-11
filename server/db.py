@@ -16,7 +16,10 @@ DATA_DIR = ROOT / "data"
 DEFAULT_SETTINGS = {
     "prompt_seconds": 300,
     "agent_timeout_seconds": 240,
-    "match_seconds": 120,
+    # 0 plays until one player is left.
+    "time_limit_seconds": 0,
+    # Stocks a player may lose before they are out. One keeps matches short.
+    "lives": 1,
     "azure_base_url": os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
     "azure_api_key": os.environ.get("AZURE_OPENAI_API_KEY", ""),
     "model": "gpt-6-luna",
@@ -30,7 +33,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS event (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    phase TEXT NOT NULL, round INTEGER NOT NULL, deadline REAL
+    phase TEXT NOT NULL, round INTEGER NOT NULL, deadline REAL, stage TEXT
 );
 CREATE TABLE IF NOT EXISTS teams (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,7 +77,7 @@ CREATE INDEX IF NOT EXISTS chat_by_session ON chat_messages (session, id);
 CREATE TABLE IF NOT EXISTS matches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     round INTEGER NOT NULL, team_ids TEXT NOT NULL, status TEXT NOT NULL,
-    result TEXT, log TEXT NOT NULL DEFAULT '', started_at REAL NOT NULL, finished_at REAL
+    result TEXT, log TEXT NOT NULL DEFAULT '', started_at REAL NOT NULL, finished_at REAL, stage TEXT
 );
 """
 
@@ -91,16 +94,25 @@ class Database:
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.executescript(SCHEMA)
         # Teams created before characters existed have none until the host picks one.
-        if "character" not in {row["name"] for row in self.conn.execute("PRAGMA table_info(teams)")}:
-            self.conn.execute("ALTER TABLE teams ADD COLUMN character TEXT")
+        self._add_missing_column("teams", "character")
+        # Rounds and matches from before stages were picked have none.
+        self._add_missing_column("event", "stage")
+        self._add_missing_column("matches", "stage")
         self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS teams_character ON teams (character)")
         self.conn.execute(
             "INSERT OR IGNORE INTO event (id, phase, round, deadline) VALUES (1, 'setup', 0, NULL)"
         )
+        # Matches used to stop after a fixed length. Now they play until one
+        # player is left, so an old saved length must not cut them short.
+        self.conn.execute("DELETE FROM settings WHERE key = 'match_seconds'")
         self.conn.execute(
             "INSERT OR IGNORE INTO settings (key, value) VALUES ('chat_token', ?)",
             (json.dumps(str(uuid.uuid4())),),
         )
+
+    def _add_missing_column(self, table: str, column: str) -> None:
+        if column not in {row["name"] for row in self.conn.execute(f"PRAGMA table_info({table})")}:
+            self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
 
     def _one(self, sql: str, *args) -> dict | None:
         row = self.conn.execute(sql, args).fetchone()
@@ -124,13 +136,17 @@ class Database:
             )
 
     def event(self) -> dict:
-        return self._one("SELECT phase, round, deadline FROM event WHERE id = 1")
+        return self._one("SELECT phase, round, deadline, stage FROM event WHERE id = 1")
 
     def set_event(self, phase: str, round_number: int, deadline: float | None) -> None:
         self.conn.execute(
             "UPDATE event SET phase = ?, round = ?, deadline = ? WHERE id = 1",
             (phase, round_number, deadline),
         )
+
+    def set_stage(self, stage: str | None) -> None:
+        """The current round's stage. It stays until the next round is opened."""
+        self.conn.execute("UPDATE event SET stage = ? WHERE id = 1", (stage,))
 
     # Teams
 
@@ -292,10 +308,10 @@ class Database:
 
     # Matches
 
-    def add_match(self, round_number: int, team_ids: list[int]) -> int:
+    def add_match(self, round_number: int, team_ids: list[int], stage: str) -> int:
         cursor = self.conn.execute(
-            "INSERT INTO matches (round, team_ids, status, started_at) VALUES (?, ?, 'running', ?)",
-            (round_number, json.dumps(team_ids), time.time()),
+            "INSERT INTO matches (round, team_ids, status, started_at, stage) VALUES (?, ?, 'running', ?, ?)",
+            (round_number, json.dumps(team_ids), time.time(), stage),
         )
         return cursor.lastrowid
 
@@ -318,6 +334,14 @@ class Database:
             row["result"] = json.loads(row["result"]) if row["result"] else None
         return rows
 
+    def finished_matches(self) -> list[dict]:
+        """Matches in a real round that ended by themselves, oldest first."""
+        rows = self._all("SELECT * FROM matches WHERE status = 'finished' AND round > 0 ORDER BY id")
+        for row in rows:
+            row["team_ids"] = json.loads(row["team_ids"])
+            row["result"] = json.loads(row["result"]) if row["result"] else None
+        return rows
+
     def last_bot_report(self, team_id: int) -> dict | None:
         """How this team's bot behaved in the most recent match it played."""
         for match in self.matches(limit=50):
@@ -331,3 +355,4 @@ class Database:
                       "chat_messages", "matches"):
             self.conn.execute(f"DELETE FROM {table}")
         self.set_event("setup", 0, None)
+        self.set_stage(None)
