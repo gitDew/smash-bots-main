@@ -401,6 +401,16 @@ body[data-tab=bot] .tab[data-tab=bot] { background: var(--cream); color: var(--i
 .row { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
 .row input[type=text] { flex: 1; min-width: 180px; width: auto; }
 .row select { width: auto; }
+.admin-page input[type=text],
+.admin-page input[type=number],
+.admin-page input[type=password],
+.admin-page select {
+  flex: none;
+  height: 46px;
+  min-width: 0;
+  max-width: 100%;
+  width: 230px;
+}
 .teams-table { border-collapse: collapse; font-size: 13px; width: 100%; }
 .teams-table th { font: 8px/1.5 var(--pixel-font); padding: 6px; text-align: left; }
 .teams-table td { border-top: 3px solid var(--cream-dark); padding: 8px 6px; vertical-align: top; }
@@ -425,6 +435,7 @@ body[data-tab=bot] .tab[data-tab=bot] { background: var(--cream); color: var(--i
 .round-form { align-items: start; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 .round-fields { display: grid; gap: 12px; }
 .round-fields label { display: block; font-size: 13px; }
+.admin-page .round-fields label { display: grid; gap: 4px; }
 .round-fields p { margin: 0; }
 .round-note { color: #57535e; font-size: 13px; margin-top: 10px; }
 .stage-map-large { margin-bottom: 12px; width: min(84vw, 860px); }

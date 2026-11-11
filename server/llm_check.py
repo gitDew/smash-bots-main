@@ -45,15 +45,15 @@ async def ask(client, model: str, items: list[dict], **options):
 
 async def check_connection(client, model: str) -> tuple[str, str]:
     text = (await ask(client, model, [{"role": "user", "content": "Reply with exactly: OK"}])).output_text
-    return ("pass", f"The model answered: {text.strip()[:60]}") if text else ("fail", "The model sent an empty answer.")
+    return ("pass", f"Das Modell hat geantwortet: {text.strip()[:60]}") if text else ("fail", "Das Modell hat eine leere Antwort gesendet.")
 
 
 async def check_streaming(client, model: str) -> tuple[str, str]:
     stream = await ask(client, model, [{"role": "user", "content": "Say hello in three words."}], stream=True)
     pieces = [event.delta async for event in stream if event.type == "response.output_text.delta"]
     if not pieces:
-        return "fail", "The stream finished without any text."
-    return "pass", f"Received the answer in {len(pieces)} pieces."
+        return "fail", "Das Streaming endete ohne Text."
+    return "pass", f"Die Antwort wurde in {len(pieces)} Teilen empfangen."
 
 
 async def check_tools(client, model: str) -> tuple[str, str]:
@@ -63,12 +63,12 @@ async def check_tools(client, model: str) -> tuple[str, str]:
     first = await ask(client, model, items, tools=TOOLS)
     calls = function_calls(first)
     if not calls:
-        return "fail", "The model answered without calling a tool."
+        return "fail", "Das Modell hat geantwortet, ohne ein Werkzeug aufzurufen."
     call = calls[0]
     try:
         arguments = json.loads(call.arguments or "{}")
     except ValueError:
-        return "fail", f"{call.name} was called with invalid arguments."
+        return "fail", f"{call.name} wurde mit ungültigen Argumenten aufgerufen."
     items.extend(replay_items(first))
     items.extend(
         {"type": "function_call_output", "call_id": each.call_id, "output": f"The secret word is {CODE_WORD}."}
@@ -76,8 +76,8 @@ async def check_tools(client, model: str) -> tuple[str, str]:
     )
     final = await ask(client, model, items, tools=TOOLS)
     if CODE_WORD.lower() not in final.output_text.lower():
-        return "warn", f"{call.name} was called, but the answer did not use its result."
-    return "pass", f"Called {call.name}({', '.join(arguments)}), read the result and used it."
+        return "warn", f"{call.name} wurde aufgerufen, aber das Ergebnis wurde nicht in der Antwort verwendet."
+    return "pass", f"{call.name}({', '.join(arguments)}) aufgerufen, Ergebnis gelesen und verwendet."
 
 
 async def check_reasoning(client, model: str) -> tuple[str, str]:
@@ -86,10 +86,10 @@ async def check_reasoning(client, model: str) -> tuple[str, str]:
     details = getattr(response.usage, "output_tokens_details", None)
     tokens = getattr(details, "reasoning_tokens", None) or 0
     if "cal" not in answer.lower():
-        return "warn", f"Used {tokens} reasoning tokens but got a logic puzzle wrong: {answer[:60]}"
+        return "warn", f"{tokens} Denk-Tokens verwendet, aber das Logikrätsel falsch gelöst: {answer[:60]}"
     if not tokens:
-        return "warn", "Solved the puzzle but reported no reasoning tokens, so reasoning may be off."
-    return "pass", f"Solved a logic puzzle using {tokens} reasoning tokens."
+        return "warn", "Rätsel gelöst, aber keine Denk-Tokens gemeldet. Die Denkfunktion ist möglicherweise deaktiviert."
+    return "pass", f"Logikrätsel mit {tokens} Denk-Tokens gelöst."
 
 
 async def check_game_words(client, model: str) -> tuple[str, str]:
@@ -97,33 +97,33 @@ async def check_game_words(client, model: str) -> tuple[str, str]:
         response = await ask(client, model, [{"role": "user", "content": GAME_WORDS}])
     except (openai.BadRequestError, RuntimeError) as exc:
         if is_content_filter(exc):
-            return "warn", "Azure's safety filter blocked normal game words. Kids' prompts may be blocked too."
+            return "warn", "Azures Sicherheitsfilter hat normale Spielbegriffe blockiert. Prompts der Kinder könnten ebenfalls blockiert werden."
         raise
     if not response.output_text:
-        return "warn", "Azure's safety filter blocked normal game words. Kids' prompts may be blocked too."
-    return "pass", "Prompts like \"destroy them all\" get through."
+        return "warn", "Azures Sicherheitsfilter hat normale Spielbegriffe blockiert. Prompts der Kinder könnten ebenfalls blockiert werden."
+    return "pass", "Prompts wie «mach sie alle fertig» werden akzeptiert."
 
 
 CHECKS = (
-    ("Connection and model", check_connection),
-    ("Streaming (helper chat)", check_streaming),
-    ("Tool calls (coding agent)", check_tools),
-    ("Reasoning", check_reasoning),
-    ("Safety filter on game words", check_game_words),
+    ("Verbindung und Modell", check_connection),
+    ("Streaming (Hilfe-Chat)", check_streaming),
+    ("Werkzeugaufrufe (Programmier-KI)", check_tools),
+    ("Logisches Denken", check_reasoning),
+    ("Sicherheitsfilter für Spielbegriffe", check_game_words),
 )
 
 
 def explain(exc: Exception, client) -> str:
     if isinstance(exc, (openai.AuthenticationError, openai.PermissionDeniedError)):
-        return "Azure rejected the API key."
+        return "Azure hat den API-Schlüssel abgelehnt."
     if isinstance(exc, openai.NotFoundError):
-        return "Model not found. Check the model name and the base URL."
+        return "Modell nicht gefunden. Prüfe den Modellnamen und die Basis-URL."
     if isinstance(exc, openai.RateLimitError):
-        return "Azure says we are over the rate limit."
+        return "Das Anfragelimit von Azure wurde überschritten."
     if isinstance(exc, openai.APITimeoutError):
-        return "Azure did not answer in time."
+        return "Azure hat nicht rechtzeitig geantwortet."
     if isinstance(exc, openai.APIConnectionError):
-        return "Could not reach Azure. Check the base URL."
+        return "Azure konnte nicht erreicht werden. Prüfe die Basis-URL."
     text = f"{type(exc).__name__}: {exc}"
     return text.replace(client.api_key, "***") if client.api_key else text
 

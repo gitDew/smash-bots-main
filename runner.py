@@ -291,8 +291,8 @@ def bot_trouble(report: dict) -> str | None:
     missed, crashed, bad = (report.get(key, 0) for key in ("missed_frames", "exceptions", "bad_replies"))
     if not (missed or crashed or bad):
         return None
-    last = report.get("last_error") or (report.get("output") or ["none"])[-1]
-    return f"missed {missed} frames, crashed on {crashed}, sent {bad} bad replies. Last error: {last}"
+    last = report.get("last_error") or (report.get("output") or ["keiner"])[-1]
+    return f"hat {missed} Spielbilder verpasst, ist bei {crashed} abgestürzt und hat {bad} ungültige Antworten gesendet. Letzter Fehler: {last}"
 
 
 def match_result(gamestate, bots, time_limit_reached: bool, out: set[int] = frozenset()) -> dict:
@@ -396,7 +396,7 @@ def main() -> int:
         parser.error("each bot needs a different character")
     iso_path = args.iso.expanduser().resolve()
     if not iso_path.is_file():
-        print(f"ISO not found: {iso_path}", file=sys.stderr)
+        print(f"ISO nicht gefunden: {iso_path}", file=sys.stderr)
         return 2
 
     # Start the bots before Dolphin. Each runs in its own container and keeps
@@ -429,7 +429,7 @@ def main() -> int:
             ) if recorder else None,
         )
         if recorder is not None and not console.is_mainline:
-            raise RecordingError("Video recording requires the project-local Slippi Mainline beta.")
+            raise RecordingError("Videoaufnahmen benötigen die lokale Slippi-Mainline-Beta dieses Projekts.")
         configure_render_to_main(
             console, legacy_macos_fallback=sys.platform == "darwin" and args.gfx_backend is None,
         )
@@ -457,11 +457,11 @@ def main() -> int:
                 try:
                     recorder.finish(match_started=False)
                 except RecordingError as cleanup_exc:
-                    print(f"Recording error: {cleanup_exc}", file=sys.stderr)
+                    print(f"Aufnahmefehler: {cleanup_exc}", file=sys.stderr)
         if isinstance(exc, (RecordingError, FileNotFoundError)):
-            print(f"Could not start the arena: {exc}", file=sys.stderr)
+            print(f"Die Arena konnte nicht gestartet werden: {exc}", file=sys.stderr)
             if isinstance(exc, FileNotFoundError):
-                print("Run ./install_dolphin.sh to install the project-local beta.", file=sys.stderr)
+                print("Führe ./install_dolphin.sh aus, um die lokale Beta dieses Projekts zu installieren.", file=sys.stderr)
             return 1
         raise
     connected_controllers = []
@@ -488,30 +488,30 @@ def main() -> int:
 
     try:
         if recorder is not None:
-            print(f"Recording to: {recorder.path}", flush=True)
+            print(f"Aufnahme wird gespeichert unter: {recorder.path}", flush=True)
         for port, bot in bots.items():
-            print(f"Player {port} bot: {bot.container or 'none, stands still'}")
-        print(f"Selected stage: {stage.name}")
-        print(f"Starting Dolphin with {iso_path}")
+            print(f"Bot von Spieler {port}: {bot.container or 'keiner, steht still'}")
+        print(f"Ausgewählte Bühne: {stage.name}")
+        print(f"Dolphin wird mit {iso_path} gestartet")
         console.run(iso_path=str(iso_path))
         if recorder is not None:
             recorder.attach(console._process.pid)
 
-        print("Connecting to Slippi...")
+        print("Verbindung zu Slippi wird aufgebaut...")
         if not console.connect():
-            print("Could not connect to Slippi Dolphin.", file=sys.stderr)
+            print("Verbindung zu Slippi Dolphin konnte nicht hergestellt werden.", file=sys.stderr)
             return 1
-        print("Connected to Slippi.")
+        print("Mit Slippi verbunden.")
 
         for controller in controllers.values():
             if not controller.connect():
                 print(
-                    f"Could not connect controller on port {controller.port}.",
+                    f"Controller an Anschluss {controller.port} konnte nicht verbunden werden.",
                     file=sys.stderr,
                 )
                 return 1
             connected_controllers.append(controller)
-        print("Virtual controllers connected.")
+        print("Virtuelle Controller verbunden.")
 
         while True:
             if recorder is not None:
@@ -534,22 +534,22 @@ def main() -> int:
                     unexpected = set(gamestate.players) - set(bots)
                     if missing or unexpected:
                         print(
-                            "Match participants do not match configured bots: "
-                            f"missing ports {sorted(missing)}, "
-                            f"unexpected ports {sorted(unexpected)}.",
+                            "Die Spieler im Kampf stimmen nicht mit den eingerichteten Bots überein: "
+                            f"fehlende Anschlüsse {sorted(missing)}, "
+                            f"unerwartete Anschlüsse {sorted(unexpected)}.",
                             file=sys.stderr,
                         )
                         return 1
                     if gamestate.is_teams:
                         print(
-                            "Team mode is enabled; the runner requires a free-for-all match.",
+                            "Der Teammodus ist aktiviert. Der Spielprozess benötigt einen Kampf, in dem jeder gegen jeden spielt.",
                             file=sys.stderr,
                         )
                         return 1
                     if stage is not melee.Stage.RANDOM_STAGE and gamestate.stage is not stage:
                         # Still playable, but not the stage the kids prompted for.
                         print(
-                            f"Warning: the game is on {gamestate.stage.name}, not {stage.name}.",
+                            f"Warnung: Das Spiel läuft auf {gamestate.stage.name}, nicht auf {stage.name}.",
                             file=sys.stderr,
                         )
                     starting_stocks = {port: int(gamestate.players[port].stock) for port in bots}
@@ -567,12 +567,12 @@ def main() -> int:
                         break
                 elif args.lives:
                     for port in sorted(players_out(gamestate, starting_stocks, args.lives) - out):
-                        print(f"Player {port} is out.")
+                        print(f"Spieler {port} ist raus.")
                         out.add(port)
                     still_in = [port for port in bots if port not in out]
                     if len(still_in) <= 1:
-                        print("Last player standing: " + (
-                            f"Player {still_in[0]} wins." if still_in else "everyone is out, so nobody wins."
+                        print("Letzter Spieler übrig: " + (
+                            f"Spieler {still_in[0]} gewinnt." if still_in else "Alle sind raus, niemand gewinnt."
                         ))
                         end_frame = gamestate.frame + END_GRACE_FRAMES
 
@@ -592,21 +592,21 @@ def main() -> int:
                     remaining = format_clock(time_left_seconds(gamestate.frame))
                     if any(port not in gamestate.players for port in bots):
                         print(
-                            "Time limit reached, but the winner could not be "
-                            "determined: player state is incomplete."
+                            "Zeitlimit erreicht, aber der Sieger konnte nicht "
+                            "ermittelt werden: Die Spielerdaten sind unvollständig."
                         )
                     else:
                         result = (
-                            f"Player {winner} wins on time"
-                            if winner is not None else "no unique winner"
+                            f"Spieler {winner} gewinnt nach Zeitablauf"
+                            if winner is not None else "kein eindeutiger Sieger"
                         )
                         scores = "; ".join(
-                            f"Player {port}: {gamestate.players[port].stock} stock(s), "
+                            f"Spieler {port}: {gamestate.players[port].stock} Leben, "
                             f"{gamestate.players[port].percent:.1f}%"
                             for port in bots
                         )
                         print(
-                            f"Time limit reached ({remaining} left): "
+                            f"Zeitlimit erreicht ({remaining} verbleibend): "
                             f"{result}. {scores}."
                         )
                     # Stopping the runner's main loop causes the finally block
@@ -633,9 +633,9 @@ def main() -> int:
                 # Stop before MenuHelper can press START or select another map.
                 winner = match_result(last_game_frame, bots, False, out)["winner_port"]
                 print(
-                    "Match finished: "
-                    + (f"Player {winner} wins" if winner is not None else "no winner")
-                    + f". Stopping Dolphin (next state: {gamestate.menu_state.name})."
+                    "Kampf beendet: "
+                    + (f"Spieler {winner} gewinnt" if winner is not None else "kein Sieger")
+                    + f". Dolphin wird gestoppt (nächster Zustand: {gamestate.menu_state.name})."
                 )
                 break
             else:
@@ -643,20 +643,20 @@ def main() -> int:
                 navigate_menu(menu_helper, gamestate, controllers, characters, stage)
 
         if time_limit_reached:
-            print("Arena stopped after the configured time limit.")
+            print("Arena nach dem eingestellten Zeitlimit gestoppt.")
         else:
-            print("Arena finished after one match.")
+            print("Arena nach einem Kampf beendet.")
         return 0
 
     except KeyboardInterrupt:
-        print("\nInterrupted.")
+        print("\nAbgebrochen.")
         return 130
     except EnetDisconnected:
-        print("Dolphin was closed, so the match ended early.")
+        print("Dolphin wurde geschlossen. Der Kampf wurde vorzeitig beendet.")
         return 130
     except RecordingError as exc:
         recording_failed = True
-        print(f"Recording error: {exc}", file=sys.stderr)
+        print(f"Aufnahmefehler: {exc}", file=sys.stderr)
         return 1
     finally:
         # A second Ctrl-C must not interrupt Dolphin cleanup or video saving.
@@ -665,7 +665,7 @@ def main() -> int:
             bot.close()
             trouble = bot_trouble(bot.report())
             if trouble:
-                print(f"Player {port} bot {trouble}")
+                print(f"Bot von Spieler {port} {trouble}")
         if args.result_file is not None and match_started:
             args.result_file.write_text(
                 json.dumps(match_result(last_game_frame, bots, time_limit_reached, out))
@@ -690,11 +690,11 @@ def main() -> int:
                         cleanup_error = exc
                     else:
                         if saved and not recording_failed:
-                            print(f"Replay saved: {recorder.path}")
+                            print(f"Wiederholung gespeichert: {recorder.path}")
             finally:
                 signal.signal(signal.SIGINT, previous_sigint)
         if cleanup_error is not None and not recording_failed:
-            print(f"Recording error: {cleanup_error}", file=sys.stderr)
+            print(f"Aufnahmefehler: {cleanup_error}", file=sys.stderr)
             return 1
 
 

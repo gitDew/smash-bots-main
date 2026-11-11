@@ -15,29 +15,29 @@ from melee import stages as geometry
 # In the order the admin menu lists them.
 STAGES = {
     "BATTLEFIELD": {
-        "name": "Battlefield",
-        "about": "A medium stage with three floating platforms.",
+        "name": "Schlachtfeld",
+        "about": "Eine mittelgrosse Bühne mit drei schwebenden Plattformen.",
     },
     "FINAL_DESTINATION": {
-        "name": "Final Destination",
-        "about": "One long flat floor and no platforms. Nowhere to hide!",
+        "name": "Letzte Station",
+        "about": "Ein langer, flacher Boden ohne Plattformen. Kein Platz zum Verstecken!",
     },
     "DREAMLAND": {
-        "name": "Dream Land",
-        "about": "A big stage with three platforms. The tree in the middle sometimes blows wind.",
+        "name": "Traumland",
+        "about": "Eine grosse Bühne mit drei Plattformen. Der Baum in der Mitte pustet manchmal Wind.",
     },
     "YOSHIS_STORY": {
-        "name": "Yoshi's Story",
-        "about": "The smallest stage, with three platforms. The ends of the floor slope down, "
-                 "and a cloud drifts by under the edges.",
+        "name": "Yoshis Story",
+        "about": "Die kleinste Bühne mit drei Plattformen. Der Boden fällt an den Enden ab, "
+                 "und unter den Kanten schwebt eine Wolke vorbei.",
     },
     "FOUNTAIN_OF_DREAMS": {
-        "name": "Fountain of Dreams",
-        "about": "A small stage. The two side platforms slowly move up and down.",
+        "name": "Traumbrunnen",
+        "about": "Eine kleine Bühne. Die beiden seitlichen Plattformen bewegen sich langsam auf und ab.",
     },
     "POKEMON_STADIUM": {
-        "name": "Pokémon Stadium",
-        "about": "A wide floor with two low platforms.",
+        "name": "Pokémon-Stadion",
+        "about": "Ein breiter Boden mit zwei niedrigen Plattformen.",
     },
 }
 DEFAULT_STAGE = "BATTLEFIELD"
@@ -187,12 +187,12 @@ def stage_svg(stage: str) -> str:
             parts.append(_platform(height, left, right, moving=True))
             parts.append(_up_and_down((left + right) / 2, height))
             if right > 0:
-                parts.append(_label(right + 2, height - 2, "moves"))
+                parts.append(_label(right + 2, height - 2, "bewegt sich"))
 
     name = STAGES[stage]["name"]
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {RIGHT - LEFT} {TOP - BOTTOM}" '
-        f'role="img" aria-label={quoteattr(f"Map of {name}")}>' + "".join(parts) + "</svg>"
+        f'role="img" aria-label={quoteattr(f"Karte von {name}")}>' + "".join(parts) + "</svg>"
     )
 
 

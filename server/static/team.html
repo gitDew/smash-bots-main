@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -27,7 +27,7 @@
     <div class="team-name" id="team-name"></div>
   </header>
 
-  <div class="banner" id="connection" hidden>RECONNECTING...</div>
+  <div class="banner" id="connection" hidden>VERBINDUNG WIRD WIEDERHERGESTELLT...</div>
 
   <section class="status" id="status" data-mood="wait" aria-live="polite">
     <div class="status-label">
@@ -38,22 +38,22 @@
         <rect x="0" y="5" width="10" height="7" fill="#e6dfcd"/>
         <rect x="4" y="7" width="2" height="3" fill="#7d3b2f"/>
       </svg>
-      <span id="status-label">LOADING</span>
+      <span id="status-label">LÄDT</span>
     </div>
     <div class="status-title" id="status-title">...</div>
     <div class="status-clock" id="status-clock" hidden></div>
     <div class="status-text" id="status-text"></div>
   </section>
 
-  <nav class="tabs" aria-label="Sections">
+  <nav class="tabs" aria-label="Bereiche">
     <button class="tab" data-tab="prompt" type="button">PROMPT</button>
-    <button class="tab" data-tab="bot" type="button">MY BOT</button>
+    <button class="tab" data-tab="bot" type="button">MEIN BOT</button>
   </nav>
 
   <main class="panels">
     <section class="panel" id="panel-prompt">
-      <h2>YOUR PROMPT</h2>
-      <p>Describe how your bot should fight. The AI turns your words into code.</p>
+      <h2>DEIN PROMPT</h2>
+      <p>Beschreibe, wie dein Bot kämpfen soll. Die KI macht aus deinen Worten Code.</p>
       <div class="stage-card" id="stage-card" hidden>
         <b id="stage-name"></b>
         <img class="stage-map" id="stage-map" alt="">
@@ -62,44 +62,44 @@
       <p class="chat-note" id="character-line" hidden></p>
       <div class="mode-line" id="mode-line" hidden>
         <span id="mode-text"></span>
-        <button class="btn btn-small" id="mode-change" type="button">CHANGE</button>
+        <button class="btn btn-small" id="mode-change" type="button">ÄNDERN</button>
       </div>
       <div class="prompt-box">
-        <textarea id="prompt" aria-label="Your prompt" placeholder="Example: stay close to the player with the most damage, and always get back to the stage."></textarea>
-        <div class="locked-stamp" id="locked-stamp" hidden>LOCKED</div>
+        <textarea id="prompt" aria-label="Dein Prompt" placeholder="Beispiel: Bleibe nah bei der Person mit dem meisten Schaden und kehre immer auf die Bühne zurück."></textarea>
+        <div class="locked-stamp" id="locked-stamp" hidden>GESPERRT</div>
       </div>
       <div class="prompt-foot">
         <span id="save-state"></span>
         <span id="char-count"></span>
       </div>
       <details class="help-sheet">
-        <summary>WHAT CAN MY BOT SEE?</summary>
+        <summary>WAS KANN MEIN BOT SEHEN?</summary>
         <div id="cheatsheet"></div>
       </details>
     </section>
 
     <section class="panel" id="panel-bot">
-      <h2>YOUR BOT</h2>
+      <h2>DEIN BOT</h2>
       <div class="agent-card" id="agent-card" data-status="none">
-        <strong id="agent-title">READY</strong>
-        <span id="agent-text">Your starter bot is waiting for your first idea.</span>
+        <strong id="agent-title">BEREIT</strong>
+        <span id="agent-text">Dein Start-Bot wartet auf deine erste Idee.</span>
       </div>
       <details class="activity" id="activity-box" hidden>
-        <summary>WHAT THE AI DID</summary>
+        <summary>WAS DIE KI GEMACHT HAT</summary>
         <ol class="activity-list" id="activity-list" aria-live="polite"></ol>
       </details>
       <div id="code-area" hidden>
-        <h3 id="code-title">THE CODE</h3>
-        <div class="code-view" tabindex="0" aria-label="Your bot's code">
+        <h3 id="code-title">DER CODE</h3>
+        <div class="code-view" tabindex="0" aria-label="Der Code deines Bots">
           <pre class="code-lines" id="code-lines" aria-hidden="true"></pre>
           <pre class="code-text"><code id="code-text"></code></pre>
         </div>
       </div>
-      <p id="code-wait" hidden>Your code appears here as soon as the AI has finished.</p>
+      <p id="code-wait" hidden>Dein Code erscheint hier, sobald die KI fertig ist.</p>
     </section>
 
     <section class="panel scores-panel" id="scores-card" hidden>
-      <h2>SCOREBOARD</h2>
+      <h2>RANGLISTE</h2>
       <p class="scores-last" id="scores-last"></p>
       <ol class="scores" id="scores-list"></ol>
     </section>
@@ -107,19 +107,19 @@
   </main>
 
   <dialog id="start-dialog" aria-labelledby="start-title">
-    <h2 id="start-title">NEW ROUND!</h2>
-    <p>What should happen to your bot?</p>
+    <h2 id="start-title">NEUE RUNDE!</h2>
+    <p>Was soll mit deinem Bot passieren?</p>
     <div class="choice-grid">
       <button class="choice" id="choose-keep" type="button">
-        <b>KEEP IMPROVING</b>
-        <span>The AI builds on the bot you already have.</span>
+        <b>WEITER VERBESSERN</b>
+        <span>Die KI verbessert den Bot, den du schon hast.</span>
       </button>
       <button class="choice choice-fresh" id="choose-fresh" type="button">
-        <b>CLEAN START</b>
-        <span>Wipe all your code. The AI starts over from a basic bot.</span>
+        <b>NEU ANFANGEN</b>
+        <span>Lösche deinen bisherigen Code. Die KI beginnt wieder mit einem einfachen Start-Bot.</span>
       </button>
     </div>
-    <p class="choice-note">You can change your mind until the round ends.</p>
+    <p class="choice-note">Du kannst dich bis zum Ende der Runde noch umentscheiden.</p>
   </dialog>
 
   <script src="/static/common.js"></script>

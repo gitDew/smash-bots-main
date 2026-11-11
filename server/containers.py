@@ -44,7 +44,7 @@ class Docker:
         try:
             out, err = await asyncio.wait_for(process.communicate(stdin), timeout)
         except asyncio.TimeoutError as exc:
-            raise DockerError(f"docker {args[0]} timed out") from exc
+            raise DockerError(f"Zeitlimit für docker {args[0]} überschritten") from exc
         finally:
             if process.returncode is None:
                 process.kill()
@@ -54,7 +54,7 @@ class Docker:
     async def _checked(self, *args: str, **kwargs) -> bytes:
         code, out, err = await self._docker(*args, **kwargs)
         if code != 0:
-            raise DockerError(err.decode(errors="replace").strip() or f"docker {args[0]} failed")
+            raise DockerError(err.decode(errors="replace").strip() or f"docker {args[0]} fehlgeschlagen")
         return out
 
     async def available(self) -> tuple[bool, str]:
@@ -106,7 +106,7 @@ class Docker:
             "exec", container_name(team_id), "head", "-c", str(limit), "--", path,
         )
         if code != 0:
-            raise DockerError(err.decode(errors="replace").strip() or f"Could not read {path}")
+            raise DockerError(err.decode(errors="replace").strip() or f"{path} konnte nicht gelesen werden")
         return out.decode(errors="replace")
 
     async def read_bot(self, team_id: int) -> str | None:
@@ -143,5 +143,5 @@ class Docker:
             if not isinstance(verdict, dict):
                 raise ValueError
         except (IndexError, ValueError):
-            return {"ok": False, "error": "The bot did not finish its test. It may be stuck in a loop."}
+            return {"ok": False, "error": "Der Bot hat seinen Test nicht beendet. Er hängt möglicherweise in einer Schleife fest."}
         return verdict

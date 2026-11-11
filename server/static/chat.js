@@ -22,13 +22,13 @@ function connect() {
   socket.onmessage = (event) => handle(JSON.parse(event.data));
   socket.onclose = (event) => {
     if (LINK_GONE_CODES.includes(event.code)) {
-      $("connection").textContent = "THIS LINK NO LONGER WORKS. ASK THE HOST FOR THE NEW QR CODE.";
+      $("connection").textContent = "DIESER LINK FUNKTIONIERT NICHT MEHR. FRAG DIE SPIELLEITUNG NACH DEM NEUEN QR-CODE.";
       $("connection").hidden = false;
       $("chat-input").disabled = true;
       $("chat-send").disabled = true;
       return;
     }
-    $("connection").textContent = "RECONNECTING...";
+    $("connection").textContent = "VERBINDUNG WIRD WIEDERHERGESTELLT...";
     $("connection").hidden = false;
     setTimeout(connect, retryMs);
     retryMs = Math.min(retryMs * 1.6, 5000);
@@ -66,19 +66,19 @@ function handle(message) {
 function statusText(s) {
   switch (s.phase) {
     case "setup":
-      return { mood: "wait", label: "GET READY", title: "WAITING", text: "The helper wakes up when the first round starts." };
+      return { mood: "wait", label: "MACH DICH BEREIT", title: "WARTEN", text: "Der Hilfe-Chat ist da, sobald die erste Runde startet." };
     case "prompting":
-      return { mood: "open", label: `ROUND ${s.round}`, title: "PROMPT TIME", text: "Ask away, then share your best ideas with your team." };
+      return { mood: "open", label: `RUNDE ${s.round}`, title: "PROMPT-ZEIT", text: "Frag drauflos und teile deine besten Ideen mit deinem Team." };
     case "fighting":
-      if (s.demo) return { mood: "fight", label: "DEMO", title: "WATCH!", text: "Nobody has told the bots what to do yet, so they just stand there. What should yours do?" };
-      return { mood: "fight", label: s.round ? `ROUND ${s.round} CLOSED` : "TEST MATCH", title: "FIGHT!", text: "Watch the big screen! You can still ask questions for the next round." };
+      if (s.demo) return { mood: "fight", label: "DEMO", title: "SCHAU ZU!", text: "Niemand hat den Bots bisher gesagt, was sie tun sollen. Deshalb stehen sie nur da. Was soll deiner tun?" };
+      return { mood: "fight", label: s.round ? `RUNDE ${s.round} GESCHLOSSEN` : "TESTKAMPF", title: "KAMPF!", text: "Schau auf den grossen Bildschirm! Du kannst weiterhin Fragen für die nächste Runde stellen." };
     default: {
       const last = s.scores.last;
       if (s.phase === "ready" && last && last.round === s.round) {
-        const title = last.winner ? `${last.winner.toUpperCase()} WON!` : "NOBODY WON";
-        return { mood: "fight", label: `ROUND ${s.round} MATCH`, title, text: "The helper is still here. Plan your next idea!" };
+        const title = last.winner ? `${last.winner.toUpperCase()} HAT GEWONNEN!` : "NIEMAND HAT GEWONNEN";
+        return { mood: "fight", label: `KAMPF IN RUNDE ${s.round}`, title, text: "Der Hilfe-Chat ist weiterhin da. Überlege dir deine nächste Idee!" };
       }
-      return { mood: "closed", label: `ROUND ${s.round} CLOSED`, title: "ROUND CLOSED", text: "Prompts are locked for now, but the helper is still here. Plan your next idea!" };
+      return { mood: "closed", label: `RUNDE ${s.round} GESCHLOSSEN`, title: "RUNDE GESCHLOSSEN", text: "Die Prompts sind gerade gesperrt, aber der Hilfe-Chat ist weiterhin da. Überlege dir deine nächste Idee!" };
     }
   }
 }
@@ -105,7 +105,7 @@ function addBubble(role, text) {
   const bubble = document.createElement("div");
   bubble.className = `bubble bubble-${role}`;
   const name = document.createElement("b");
-  name.textContent = role === "user" ? "YOU" : "HELPER";
+  name.textContent = role === "user" ? "DU" : "HILFE-KI";
   const body = document.createElement("span");
   body.textContent = text;
   bubble.append(name, body);

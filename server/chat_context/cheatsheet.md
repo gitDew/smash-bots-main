@@ -1,62 +1,62 @@
-# What your bot can see
+# Was dein Bot sehen kann
 
-Your bot looks at the game 60 times every second.
+Dein Bot schaut sich das Spiel 60-mal pro Sekunde an.
 
-## How to win
+## So gewinnst du
 
-Usually every player has just one life: get knocked out once and you are out!
-Knock the others off the stage, and stay on it yourself. The last player still
-in wins.
+Meistens hat jeder Spieler nur ein Leben: Einmal rausgeflogen und du bist raus!
+Stosse die anderen von der Bühne und bleibe selbst darauf. Wer als Letzter
+noch dabei ist, gewinnt.
 
-## Everyone in the match
+## Alle Spieler im Kampf
 
-Your bot can see **every** player, including all your opponents. For each one:
+Dein Bot kann **alle** Spieler sehen, auch alle Gegner. Für jeden sieht er:
 
-- `position.x` and `position.y`: where they are
-- `percent`: their damage
-- `stock`: lives left
-- `character`: who they are playing
-- `action`: what they are doing right now, like running or attacking
-- `action_frame`: how far into that move they are
-- `facing`: which way they are looking
-- `on_ground` and `off_stage`: are they standing, or off the edge?
-- `jumps_left`: jumps they have left
-- `shield_strength`: how strong their shield is
-- `invulnerable`: can they be hit right now?
-- `hitstun_frames_left`: how long they are stuck after being hit
-- `controller_state`: the buttons they are pressing
+- `position.x` und `position.y`: wo sie sind
+- `percent`: wie viel Schaden sie haben
+- `stock`: wie viele Leben sie noch haben
+- `character`: welche Figur sie spielen
+- `action`: was sie gerade tun, zum Beispiel rennen oder angreifen
+- `action_frame`: wie weit ihre aktuelle Bewegung schon ist
+- `facing`: in welche Richtung sie schauen
+- `on_ground` und `off_stage`: stehen sie auf dem Boden oder sind sie ausserhalb der Bühne?
+- `jumps_left`: wie viele Sprünge sie noch haben
+- `shield_strength`: wie stark ihr Schild ist
+- `invulnerable`: ob sie gerade vor Treffern geschützt sind
+- `hitstun_frames_left`: wie lange sie nach einem Treffer noch nicht handeln können
+- `controller_state`: welche Tasten sie drücken
 
-## The rest of the game
+## Der Rest des Spiels
 
-- `gamestate.players`: all the players, by port number
-- `gamestate.stage`: which stage you are on
-- `gamestate.frame`: how many frames have passed
-- `gamestate.projectiles`: things flying around, like lasers and fireballs
+- `gamestate.players`: alle Spieler, nach Controller-Anschluss geordnet
+- `gamestate.stage`: auf welcher Bühne du bist
+- `gamestate.frame`: wie viele Spielbilder vergangen sind
+- `gamestate.projectiles`: Dinge, die herumfliegen, zum Beispiel Laser und Feuerbälle
 
-## What your bot can do
+## Was dein Bot tun kann
 
-Every frame it can move the sticks and press buttons:
+Bei jedem Spielbild kann er die Steuerknüppel bewegen und Tasten drücken:
 
-- Main stick: walk, run, duck, jump, aim
-- C stick: quick smash attacks
-- A: attacks
-- B: special moves
-- X or Y: jump
-- L or R: shield and dodge
-- Z: grab
+- Haupt-Stick: gehen, rennen, ducken, springen, zielen
+- C-Stick: schnelle Smash-Angriffe
+- A: angreifen
+- B: Spezialattacken
+- X oder Y: springen
+- L oder R: Schild benutzen und ausweichen
+- Z: greifen
 
-## What your bot cannot do
+## Was dein Bot nicht tun kann
 
-- See another team's code or plans
-- Control anyone else's character
-- Pick a different character: the host chooses those
-- Use the internet
-- Change the stage or the rules
+- Den Code oder die Pläne eines anderen Teams sehen
+- Die Figur eines anderen Spielers steuern
+- Eine andere Figur wählen: Das entscheidet die Spielleitung
+- Das Internet benutzen
+- Die Bühne oder die Regeln ändern
 
-## Good ideas to try
+## Gute Ideen zum Ausprobieren
 
-- Look at this round's stage: where are the edges and the platforms?
-- Who is closest? Who has the most damage?
-- What should my bot do when it falls off the edge?
-- Should it attack, shield or run away when someone is close?
-- What is your character best at?
+- Schau dir die Bühne dieser Runde an: Wo sind die Kanten und Plattformen?
+- Wer ist am nächsten? Wer hat den meisten Schaden?
+- Was soll mein Bot tun, wenn er von der Kante fällt?
+- Soll er angreifen, den Schild benutzen oder weglaufen, wenn jemand in der Nähe ist?
+- Was kann deine Figur besonders gut?

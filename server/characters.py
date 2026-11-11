@@ -13,7 +13,9 @@ DISPLAY_NAMES = {
     "DOC": "Dr. Mario",
     "GAMEANDWATCH": "Mr. Game & Watch",
     "POPO": "Ice Climbers",
-    "YLINK": "Young Link",
+    "YLINK": "Junger Link",
+    "JIGGLYPUFF": "Pummeluff",
+    "MEWTWO": "Mewtu",
 }
 
 # Internal name to display name, in alphabetical order for the admin menus.

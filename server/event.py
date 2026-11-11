@@ -88,7 +88,7 @@ class Event:
         self.docker_status = "ok" if ok else detail
         event = self.db.event()
         if event["phase"] in ("coding", "fighting"):
-            self.db.fail_unfinished_runs("The server restarted during this step.")
+            self.db.fail_unfinished_runs("Der Server wurde während dieses Schritts neu gestartet.")
             self.db.fail_unfinished_matches()
             self.db.set_event("ready" if event["round"] else "setup", event["round"], None)
 
@@ -144,16 +144,16 @@ class Event:
         async with self._lock:
             event = self.db.event()
             if event["phase"] not in ("setup", "ready"):
-                raise EventError("A round can only be opened before the first round or between rounds.")
+                raise EventError("Eine Runde kann nur vor der ersten Runde oder zwischen zwei Runden geöffnet werden.")
             seconds = seconds or self.db.settings()["prompt_seconds"]
             if not MIN_PROMPT_SECONDS <= seconds <= MAX_PROMPT_SECONDS:
                 raise EventError(
-                    f"The prompt time must be {MIN_PROMPT_SECONDS} seconds to {MAX_PROMPT_SECONDS // 60} minutes."
+                    f"Die Prompt-Zeit muss zwischen {MIN_PROMPT_SECONDS} Sekunden und {MAX_PROMPT_SECONDS // 60} Minuten liegen."
                 )
             stage = self._require_stage(stage or event["stage"] or DEFAULT_STAGE)
             teams = self.db.teams()
             if not teams:
-                raise EventError("Add at least one team first.")
+                raise EventError("Füge zuerst mindestens ein Team hinzu.")
             self._require_characters(teams)
             await asyncio.gather(*(self._prepare_team(team) for team in teams))
             self.db.update_settings({"prompt_seconds": seconds})
@@ -164,7 +164,7 @@ class Event:
     async def add_time(self, seconds: int) -> None:
         event = self.db.event()
         if event["phase"] != "prompting" or event["deadline"] is None:
-            raise EventError("No round is open.")
+            raise EventError("Es ist keine Runde geöffnet.")
         self.db.set_event("prompting", event["round"], max(event["deadline"], time.time()) + seconds)
         await self.broadcast()
 
@@ -172,25 +172,25 @@ class Event:
         async with self._lock:
             event = self.db.event()
             if event["phase"] != "prompting":
-                raise EventError("No round is open.")
+                raise EventError("Es ist keine Runde geöffnet.")
             round_number = event["round"]
             self.db.set_event("coding", round_number, None)
             queued = []
             for team in self.db.teams():
                 if self.db.prompt(team["id"], round_number).strip():
-                    self.db.set_run(team["id"], round_number, "queued", step="Waiting to start")
+                    self.db.set_run(team["id"], round_number, "queued", step="Wartet auf den Start")
                     queued.append(team["id"])
                 elif self.db.start_mode(team["id"], round_number) == "fresh":
                     starter = self.db.starter_version(team["id"])["code"]
-                    self.db.add_version(team["id"], round_number, starter, "Clean start")
+                    self.db.add_version(team["id"], round_number, starter, "Neu angefangen")
                     self.db.set_run(
                         team["id"], round_number, "skipped",
-                        summary="Clean start! Your bot is back to the starter bot.",
+                        summary="Neustart! Dein Bot ist wieder der einfache Start-Bot.",
                     )
                 else:
                     self.db.set_run(
                         team["id"], round_number, "skipped",
-                        summary="No prompt this round, so your bot stayed the same.",
+                        summary="Kein Prompt in dieser Runde. Dein Bot bleibt unverändert.",
                     )
             if queued:
                 self.spawn(self._run_agents(round_number, queued))
@@ -208,7 +208,7 @@ class Event:
                 logger.error("Agent for team %s failed", team_id, exc_info=result)
                 self.db.set_run(
                     team_id, round_number, "failed",
-                    error="The agent had a problem, so your last bot will fight.",
+                    error="Die KI hatte ein Problem. Deshalb kämpft dein bisheriger Bot.",
                     detail=repr(result),
                 )
         event = self.db.event()
@@ -220,11 +220,11 @@ class Event:
         async with self._lock:
             event = self.db.event()
             if event["phase"] != "ready":
-                raise EventError("Agents can only be retried once all of them have finished.")
+                raise EventError("Die KI kann erst erneut gestartet werden, wenn sie für alle Teams fertig ist.")
             if not self.db.prompt(team_id, event["round"]).strip():
-                raise EventError("This team has no prompt in this round.")
+                raise EventError("Dieses Team hat in dieser Runde keinen Prompt.")
             self.db.set_event("coding", event["round"], None)
-            self.db.set_run(team_id, event["round"], "queued", step="Waiting to start")
+            self.db.set_run(team_id, event["round"], "queued", step="Wartet auf den Start")
             self.spawn(self._run_agents(event["round"], [team_id]))
         await self.broadcast()
 
@@ -235,37 +235,37 @@ class Event:
         await self.docker.ensure(team["id"])
         version = self.db.latest_version(team["id"])
         if version is None:
-            self.db.add_version(team["id"], 0, STARTER_BOT.read_text(), "Starter bot")
+            self.db.add_version(team["id"], 0, STARTER_BOT.read_text(), "Start-Bot")
             version = self.db.latest_version(team["id"])
         await self.docker.write_bot(team["id"], version["code"])
 
     def _require_idle(self) -> None:
         if self.db.event()["phase"] in ("coding", "fighting"):
-            raise EventError("Wait until the agents or the match have finished.")
+            raise EventError("Warte, bis die KI oder der Kampf fertig ist.")
 
     def _require_team(self, team_id: int) -> dict:
         team = self.db.team(team_id)
         if team is None:
-            raise EventError("That team does not exist.")
+            raise EventError("Dieses Team gibt es nicht.")
         return team
 
     def _require_characters(self, teams: list[dict]) -> None:
         missing = [team["name"] for team in teams if not team["character"]]
         if missing:
-            raise EventError(f"Choose a character for: {', '.join(missing)}.")
+            raise EventError(f"Wähle eine Figur für: {', '.join(missing)}.")
 
     @staticmethod
     def _require_stage(stage: str) -> str:
         if stage not in STAGES:
-            raise EventError("Choose a stage from the list.")
+            raise EventError("Wähle eine Bühne aus der Liste.")
         return stage
 
     def _require_free_character(self, character: str, team_id: int | None = None) -> None:
         if character not in CHARACTERS:
-            raise EventError("Choose a character from the list.")
+            raise EventError("Wähle eine Figur aus der Liste.")
         for team in self.db.teams():
             if team["character"] == character and team["id"] != team_id:
-                raise EventError(f"{CHARACTERS[character]} is already taken by {team['name']}.")
+                raise EventError(f"{CHARACTERS[character]} wird bereits von {team['name']} gespielt.")
 
     async def set_character(self, team_id: int, character: str) -> None:
         self._require_idle()
@@ -277,16 +277,16 @@ class Event:
     async def add_team(self, name: str, character: str) -> dict:
         name = name.strip()
         if not name or len(name) > 40:
-            raise EventError("Team names must be 1 to 40 characters.")
+            raise EventError("Teamnamen müssen 1 bis 40 Zeichen lang sein.")
         if any(team["name"].lower() == name.lower() for team in self.db.teams()):
-            raise EventError("There is already a team with that name.")
+            raise EventError("Es gibt bereits ein Team mit diesem Namen.")
         self._require_free_character(character)
         team = self.db.add_team(name, character)
         try:
             await self._prepare_team(team)
         except (DockerError, OSError) as exc:
             self.db.delete_team(team["id"])
-            raise EventError(f"Could not create the team's container: {exc}") from exc
+            raise EventError(f"Der Container des Teams konnte nicht erstellt werden: {exc}") from exc
         await self.broadcast()
         return team
 
@@ -294,9 +294,9 @@ class Event:
         self._require_team(team_id)
         name = name.strip()
         if not name or len(name) > 40:
-            raise EventError("Team names must be 1 to 40 characters.")
+            raise EventError("Teamnamen müssen 1 bis 40 Zeichen lang sein.")
         if any(t["name"].lower() == name.lower() and t["id"] != team_id for t in self.db.teams()):
-            raise EventError("There is already a team with that name.")
+            raise EventError("Es gibt bereits ein Team mit diesem Namen.")
         self.db.rename_team(team_id, name)
         await self.broadcast()
 
@@ -319,12 +319,12 @@ class Event:
         self._require_team(team_id)
         version = self.db.version(version_id)
         if version is None or version["team_id"] != team_id:
-            raise EventError("That version does not belong to this team.")
+            raise EventError("Diese Version gehört nicht zu diesem Team.")
         await self.docker.ensure(team_id)
         await self.docker.write_bot(team_id, version["code"])
         self.db.add_version(
             team_id, self.db.event()["round"], version["code"],
-            f"Rolled back to version {version_id}",
+            f"Version {version_id} wiederhergestellt",
         )
         await self.broadcast()
 
@@ -351,14 +351,14 @@ class Event:
         async with self._lock:
             event = self.db.event()
             if event["phase"] not in ("setup", "ready"):
-                raise EventError("A match can only start when no round or agent is running.")
+                raise EventError("Ein Kampf kann nur starten, wenn keine Prompt-Runde oder KI läuft.")
             if len(set(team_ids)) != len(team_ids) or not 2 <= len(team_ids) <= MAX_TEAMS_PER_MATCH:
-                raise EventError(f"Choose 2 to {MAX_TEAMS_PER_MATCH} different teams.")
+                raise EventError(f"Wähle 2 bis {MAX_TEAMS_PER_MATCH} verschiedene Teams.")
             self._require_characters([self._require_team(team_id) for team_id in team_ids])
             choices = (stage, event["stage"]) if demo else (event["stage"], stage)
             stage = self._require_stage(next((choice for choice in choices if choice), DEFAULT_STAGE))
             if not Path(self.db.settings()["iso_path"]).expanduser().is_file():
-                raise EventError("The Melee ISO was not found. Check its path in the settings.")
+                raise EventError("Die Melee-ISO wurde nicht gefunden. Prüfe den Pfad in den Einstellungen.")
             self.demo_match = demo
             self.db.set_event("fighting", event["round"], None)
             self.spawn(self._run_match(event["round"], team_ids, stage, demo))
@@ -374,7 +374,7 @@ class Event:
         await self.docker.restart(team_id)
         verdict = await self.docker.check_bot(team_id)
         if not verdict.get("ok"):
-            raise EventError(f"{team['name']}'s bot failed its check: {verdict.get('error')}")
+            raise EventError(f"Der Bot von {team['name']} hat den Test nicht bestanden: {verdict.get('error')}")
 
     async def _run_match(self, round_number: int, team_ids: list[int], stage: str, demo: bool) -> None:
         match_id = None if demo else self.db.add_match(round_number, team_ids, stage)
@@ -383,12 +383,12 @@ class Event:
         try:
             if demo:
                 await self._log(
-                    f"Demo on {STAGES[stage]['name']}: nobody has a bot, so every player stands still. "
-                    "Press STOP MATCH when you are done explaining."
+                    f"Demo auf {STAGES[stage]['name']}: Niemand hat einen Bot, deshalb stehen alle Spieler still. "
+                    "Drücke KAMPF STOPPEN, wenn du mit dem Erklären fertig bist."
                 )
                 result_file = None
             else:
-                await self._log(f"Getting the bots ready for {STAGES[stage]['name']}...")
+                await self._log(f"Die Bots werden für {STAGES[stage]['name']} vorbereitet...")
                 await asyncio.gather(*(self._ready_for_match(team_id) for team_id in team_ids))
                 MATCH_DIR.mkdir(parents=True, exist_ok=True)
                 result_file = MATCH_DIR / f"match_{match_id}.json"
@@ -402,9 +402,9 @@ class Event:
             if result_file is not None:
                 result = read_result(result_file, team_ids)
             status = "finished" if code == 0 else "stopped" if code == 130 else "failed"
-            await self._log(f"Runner exited with code {code}.")
+            await self._log(f"Spielprozess mit Code {code} beendet.")
         except (EventError, DockerError, OSError) as exc:
-            await self._log(f"Could not run the match: {exc}")
+            await self._log(f"Der Kampf konnte nicht gestartet werden: {exc}")
         finally:
             if match_id is not None:
                 self.db.finish_match(match_id, status, result, "\n".join(self.match_log))
@@ -452,7 +452,7 @@ class Event:
 
     def stop_match(self) -> None:
         if not self.match_runner.stop():
-            raise EventError("No match is running.")
+            raise EventError("Es läuft kein Kampf.")
 
     # Chat
 

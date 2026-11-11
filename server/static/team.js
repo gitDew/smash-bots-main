@@ -36,12 +36,12 @@ function connect() {
   socket.onmessage = (event) => handle(JSON.parse(event.data));
   socket.onclose = (event) => {
     if (LINK_GONE_CODES.includes(event.code)) {
-      $("connection").textContent = "THIS LINK NO LONGER WORKS. ASK THE HOST FOR A NEW ONE.";
+      $("connection").textContent = "DIESER LINK FUNKTIONIERT NICHT MEHR. FRAG DIE SPIELLEITUNG NACH EINEM NEUEN.";
       $("connection").hidden = false;
       $("prompt").readOnly = true;
       return;
     }
-    $("connection").textContent = "RECONNECTING...";
+    $("connection").textContent = "VERBINDUNG WIRD WIEDERHERGESTELLT...";
     $("connection").hidden = false;
     setTimeout(connect, retryMs);
     retryMs = Math.min(retryMs * 1.6, 5000);
@@ -55,11 +55,11 @@ function handle(message) {
       if (!dirty) { $("prompt").value = message.text; updateCount(); }
       break;
     case "prompt_saved":
-      if (message.seq === promptSeq) { dirty = false; setSaveState("SAVED"); }
+      if (message.seq === promptSeq) { dirty = false; setSaveState("GESPEICHERT"); }
       break;
     case "prompt_rejected":
       dirty = false;
-      setSaveState("TOO LATE: THE ROUND HAD CLOSED");
+      setSaveState("ZU SPÄT: DIE RUNDE WAR SCHON GESCHLOSSEN");
       break;
     case "agent_activity_history":
       $("activity-list").replaceChildren();
@@ -74,22 +74,22 @@ function statusText(s) {
   const running = s.agent && ["queued", "running"].includes(s.agent.status);
   switch (s.phase) {
     case "setup":
-      return { mood: "wait", label: "GET READY", title: "WAITING", text: "The first round starts soon." };
+      return { mood: "wait", label: "MACH DICH BEREIT", title: "WARTEN", text: "Die erste Runde startet bald." };
     case "prompting":
-      return { mood: "open", label: `ROUND ${s.round}`, title: "PROMPT TIME", text: "Everything you type is saved by itself. When the time is up, the AI starts coding." };
+      return { mood: "open", label: `RUNDE ${s.round}`, title: "PROMPT-ZEIT", text: "Alles, was du schreibst, wird automatisch gespeichert. Wenn die Zeit abläuft, beginnt die KI zu programmieren." };
     case "coding":
-      return { mood: "closed", label: `ROUND ${s.round} CLOSED`, title: running ? "AI IS CODING" : "BOT FINISHED", text: "No more changes to this round's prompt." };
+      return { mood: "closed", label: `RUNDE ${s.round} GESCHLOSSEN`, title: running ? "KI PROGRAMMIERT" : "BOT FERTIG", text: "Der Prompt für diese Runde kann nicht mehr geändert werden." };
     case "ready": {
       const last = s.scores.last;
       if (last && last.round === s.round) {
-        const title = last.won ? "YOU WON!" : last.winner ? `${last.winner.toUpperCase()} WON!` : "NOBODY WON";
-        return { mood: "fight", label: `ROUND ${s.round} MATCH`, title, text: "Read your code and plan your next idea." };
+        const title = last.won ? "IHR HABT GEWONNEN!" : last.winner ? `${last.winner.toUpperCase()} HAT GEWONNEN!` : "NIEMAND HAT GEWONNEN";
+        return { mood: "fight", label: `KAMPF IN RUNDE ${s.round}`, title, text: "Lies deinen Code und überlege dir deine nächste Idee." };
       }
-      return { mood: "closed", label: `ROUND ${s.round} CLOSED`, title: "BOTS READY", text: "No more changes to this round's prompt. Read your code and plan your next idea." };
+      return { mood: "closed", label: `RUNDE ${s.round} GESCHLOSSEN`, title: "BOTS BEREIT", text: "Der Prompt für diese Runde kann nicht mehr geändert werden. Lies deinen Code und überlege dir deine nächste Idee." };
     }
     case "fighting":
-      if (s.demo) return { mood: "fight", label: "DEMO", title: "WATCH!", text: "Nobody has told the bots what to do yet, so they just stand there. Your prompt changes that!" };
-      return { mood: "fight", label: s.round ? `ROUND ${s.round} CLOSED` : "TEST MATCH", title: "FIGHT!", text: "Watch the big screen!" };
+      if (s.demo) return { mood: "fight", label: "DEMO", title: "SCHAU ZU!", text: "Niemand hat den Bots bisher gesagt, was sie tun sollen. Deshalb stehen sie nur da. Dein Prompt ändert das!" };
+      return { mood: "fight", label: s.round ? `RUNDE ${s.round} GESCHLOSSEN` : "TESTKAMPF", title: "KAMPF!", text: "Schau auf den grossen Bildschirm!" };
     default:
       return { mood: "wait", label: "", title: "", text: "" };
   }
@@ -102,7 +102,7 @@ function renderState(s) {
   shownRound = s.round;
   state = s;
   $("team-name").textContent = s.team.name;
-  $("character-line").textContent = `You fight as ${s.team.character}. The host picks the characters, so this cannot be changed.`;
+  $("character-line").textContent = `Du kämpfst als ${s.team.character}. Die Spielleitung wählt die Figuren aus. Das kannst du nicht ändern.`;
   $("character-line").hidden = !s.team.character;
 
   const status = statusText(s);
@@ -120,10 +120,10 @@ function renderState(s) {
   if (roundChanged) dirty = false;
   if (!dirty) prompt.value = s.prompt;
   if (s.prompt_open) {
-    if (dirty) flushPrompt(); else setSaveState(s.prompt ? "SAVED" : "");
+    if (dirty) flushPrompt(); else setSaveState(s.prompt ? "GESPEICHERT" : "");
   } else {
     dirty = false;
-    setSaveState(s.round ? "ROUND CLOSED" : "NOT OPEN YET");
+    setSaveState(s.round ? "RUNDE GESCHLOSSEN" : "NOCH NICHT GEÖFFNET");
   }
   updateCount();
   renderStage(s.stage);
@@ -140,8 +140,8 @@ function renderStartChoice(s) {
   if (!asked && dialog.open) dialog.close();
   $("mode-line").hidden = !asked || mode === null;
   $("mode-text").textContent = mode === "fresh"
-    ? "CLEAN START: your old code is wiped when this round ends."
-    : "KEEP IMPROVING: the AI builds on your current bot.";
+    ? "NEU ANFANGEN: Dein alter Code wird am Ende dieser Runde gelöscht."
+    : "WEITER VERBESSERN: Die KI verbessert deinen bisherigen Bot.";
 }
 
 function chooseStart(mode) {
@@ -161,14 +161,14 @@ function renderAgent(s) {
   const card = $("agent-card");
   card.dataset.status = agent ? agent.status : "none";
   if (!agent) {
-    $("agent-title").textContent = "READY";
-    $("agent-text").textContent = "Your starter bot is waiting for your first idea.";
+    $("agent-title").textContent = "BEREIT";
+    $("agent-text").textContent = "Dein Start-Bot wartet auf deine erste Idee.";
     $("agent-text").classList.remove("working-dots");
     return;
   }
   const working = ["queued", "running"].includes(agent.status);
-  $("agent-title").textContent = working ? `ROUND ${agent.round}: WORKING` : agent.status === "failed" ? `ROUND ${agent.round}: OOPS` : `ROUND ${agent.round}: DONE`;
-  $("agent-text").textContent = working ? agent.step || "Working" : agent.error || agent.summary || "";
+  $("agent-title").textContent = working ? `RUNDE ${agent.round}: IN ARBEIT` : agent.status === "failed" ? `RUNDE ${agent.round}: UPS` : `RUNDE ${agent.round}: FERTIG`;
+  $("agent-text").textContent = working ? agent.step || "In Arbeit" : agent.error || agent.summary || "";
   $("agent-text").classList.toggle("working-dots", working);
   if (working) $("activity-box").open = true;
 }
@@ -213,7 +213,7 @@ function renderCode(s) {
   const lines = s.code.text.replace(/\n$/, "").split("\n");
   $("code-lines").textContent = lines.map((_, index) => index + 1).join("\n");
   highlight($("code-text"), s.code.text);
-  $("code-title").textContent = s.code.round ? `THE CODE AFTER ROUND ${s.code.round}` : "YOUR STARTER CODE";
+  $("code-title").textContent = s.code.round ? `DER CODE NACH RUNDE ${s.code.round}` : "DEIN START-CODE";
   document.querySelector('.tab[data-tab="bot"]').classList.toggle("has-news", isNews);
 }
 
@@ -228,12 +228,12 @@ function flushPrompt() {
   clearTimeout(saveTimer);
   if (!dirty || !state || !state.prompt_open) return;
   promptSeq += 1;
-  if (!send({ type: "prompt", text: $("prompt").value, seq: promptSeq })) setSaveState("OFFLINE: WILL SAVE WHEN BACK");
+  if (!send({ type: "prompt", text: $("prompt").value, seq: promptSeq })) setSaveState("OFFLINE: WIRD BEI VERBINDUNG GESPEICHERT");
 }
 
 $("prompt").addEventListener("input", () => {
   dirty = true;
-  setSaveState("SAVING...");
+  setSaveState("WIRD GESPEICHERT...");
   updateCount();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushPrompt, SAVE_DELAY_MS);

@@ -1,43 +1,42 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Smash Bots Admin</title>
+  <title>Smash Bots Verwaltung</title>
   <link rel="stylesheet" href="/static/retro.css">
 </head>
-<body>
+<body class="admin-page">
   <header class="top">
     <div class="logo"><div>SMASH<span>BOTS</span> ADMIN</div></div>
-    <div class="team-name">HOST CONSOLE</div>
+    <div class="team-name">SPIELLEITUNG</div>
   </header>
 
-  <div class="banner" id="connection" hidden>RECONNECTING...</div>
+  <div class="banner" id="connection" hidden>VERBINDUNG WIRD WIEDERHERGESTELLT...</div>
   <div class="banner" id="health" hidden></div>
 
   <section class="status" id="status" data-mood="wait">
-    <div class="status-label"><span id="status-label">LOADING</span></div>
+    <div class="status-label"><span id="status-label">LÄDT</span></div>
     <div class="status-title" id="status-title">...</div>
     <div class="status-clock" id="status-clock" hidden></div>
     <div class="status-text row">
-      <button class="btn btn-stop" id="close-round" type="button">CLOSE ROUND NOW</button>
+      <button class="btn btn-stop" id="close-round" type="button">RUNDE JETZT SCHLIESSEN</button>
       <button class="btn" id="add-time" type="button">+1 MINUTE</button>
     </div>
   </section>
 
   <main class="admin-grid">
     <section class="panel">
-      <h2>NEXT ROUND</h2>
+      <h2>NÄCHSTE RUNDE</h2>
       <form class="round-form" id="round-form">
         <div class="round-fields">
-          <label>Prompt time (minutes)<input type="number" id="round-minutes" min="0.5" max="120" step="0.5" required></label>
-          <label>Stage<select id="round-stage" aria-label="Stage for the next round"></select></label>
+          <label>Prompt-Zeit (Minuten)<input type="number" id="round-minutes" min="0.5" max="120" step="0.5" required></label>
+          <label>Bühne<select id="round-stage" aria-label="Bühne für die nächste Runde"></select></label>
           <p id="round-stage-about"></p>
           <div class="row">
-            <button class="btn btn-go" id="open-round" type="submit">OPEN NEXT ROUND</button>
-            <button class="btn" id="show-stage" type="button">SHOW STAGE</button>
+            <button class="btn btn-go" id="open-round" type="submit">NÄCHSTE RUNDE ÖFFNEN</button>
+            <button class="btn" id="show-stage" type="button">BÜHNE ANZEIGEN</button>
           </div>
-          <p class="round-note">The kids see the map on their phones as soon as the round opens. The round's match is played on this stage.</p>
         </div>
         <img class="stage-map" id="round-stage-map" alt="">
       </form>
@@ -46,123 +45,120 @@
     <section class="panel">
       <h2>TEAMS</h2>
       <form class="row" id="add-team">
-        <input type="text" id="team-name-input" maxlength="40" placeholder="New team name" aria-label="New team name">
-        <select id="team-character-input" aria-label="Character for the new team"></select>
-        <button class="btn btn-go" type="submit">ADD TEAM</button>
+        <input type="text" id="team-name-input" maxlength="40" placeholder="Neuer Teamname" aria-label="Neuer Teamname">
+        <select id="team-character-input" aria-label="Figur für das neue Team"></select>
+        <button class="btn btn-go" type="submit">TEAM HINZUFÜGEN</button>
       </form>
       <p class="warn" id="error" role="alert"></p>
       <table class="teams-table">
         <thead>
-          <tr><th>PLAY</th><th>TEAM</th><th>CHARACTER</th><th>ONLINE</th><th>PROMPT</th><th>AGENT</th><th>ACTIONS</th></tr>
+          <tr><th>SPIELT</th><th>TEAM</th><th>FIGUR</th><th>ONLINE</th><th>PROMPT</th><th>KI</th><th>AKTIONEN</th></tr>
         </thead>
         <tbody id="teams"></tbody>
       </table>
     </section>
 
     <section class="panel">
-      <h2>AGENTS LIVE</h2>
-      <p>Every step each team's agent takes, as it happens.</p>
+      <h2>KI LIVE</h2>
+      <p>Alle Schritte der KI für jedes Team, live mitverfolgen.</p>
       <div class="feed-grid" id="feeds"></div>
     </section>
 
     <section class="panel">
-      <h2>HELPER CHAT QR</h2>
-      <p>One code for everyone. Any kid can scan it to ask questions on their own phone. It gives no access to a team's prompt or code.</p>
+      <h2>HILFE-CHAT: QR-CODE</h2>
       <p id="chat-stats"></p>
       <div class="row">
-        <button class="btn btn-go" id="chat-qr" type="button">SHOW QR</button>
-        <button class="btn" id="chat-copy" type="button">COPY LINK</button>
-        <button class="btn" id="chat-log" type="button">READ CHATS</button>
-        <button class="btn btn-warn" id="chat-regenerate" type="button">NEW LINK</button>
+        <button class="btn btn-go" id="chat-qr" type="button">QR-CODE ANZEIGEN</button>
+        <button class="btn" id="chat-copy" type="button">LINK KOPIEREN</button>
+        <button class="btn" id="chat-log" type="button">CHATS LESEN</button>
+        <button class="btn btn-warn" id="chat-regenerate" type="button">NEUER LINK</button>
       </div>
     </section>
 
     <section class="panel">
-      <h2>MATCH</h2>
-      <p>Tick 2 to 4 teams in the table above, then start. The game runs on this machine. A match ends when only one player is left, or when the time limit in the settings runs out, and then the leader wins. STOP MATCH ends it with no winner.</p>
+      <h2>KAMPF</h2>
       <p id="match-stage"></p>
       <div class="row">
-        <button class="btn btn-go" id="start-match" type="button">START MATCH</button>
-        <button class="btn" id="demo-match" type="button">DEMO: NOBODY MOVES</button>
-        <button class="btn btn-stop" id="stop-match" type="button">STOP MATCH</button>
+        <button class="btn btn-go" id="start-match" type="button">KAMPF STARTEN</button>
+        <button class="btn" id="demo-match" type="button">DEMO: ALLE STEHEN STILL</button>
+        <button class="btn btn-stop" id="stop-match" type="button">KAMPF STOPPEN</button>
       </div>
-      <p class="round-note">The demo uses the ticked teams' characters on the stage picked for the next round, with no bots, so every player stands still. Use it to show the kids what their prompt has to change. It is not recorded.</p>
       <pre class="log" id="match-log"></pre>
-      <h3>RECENT MATCHES</h3>
+      <h3>LETZTE KÄMPFE</h3>
       <div id="matches"></div>
     </section>
 
     <section class="panel">
-      <h2>SCOREBOARD</h2>
+      <h2>RANGLISTE</h2>
       <p class="scores-last" id="scores-last"></p>
       <ol class="scores" id="scores-list"></ol>
-      <p class="round-note">A win counts when a match in a round ends by itself. Stopped matches, test matches before round 1 and demos do not count.</p>
-      <button class="btn" id="show-scores" type="button">SHOW SCOREBOARD</button>
+      <p class="round-note">Ein Sieg zählt, wenn ein Kampf innerhalb einer Runde von selbst endet. Gestoppte Kämpfe, Testkämpfe vor Runde 1 und Demos zählen nicht.</p>
+      <button class="btn" id="show-scores" type="button">RANGLISTE ANZEIGEN</button>
     </section>
 
-    <section class="panel">
-      <h2>SETTINGS</h2>
+    <details class="panel help-sheet" id="settings-panel">
+      <summary>EINSTELLUNGEN</summary>
       <form id="settings" class="settings">
-        <label>Public URL (from the tunnel)<input type="text" name="public_url" placeholder="https://example.trycloudflare.com"></label>
-        <label>Agent time limit (seconds)<input type="number" name="agent_timeout_seconds" min="30" max="1800"></label>
-        <label>Time limit (seconds, 0 = until one is left)<input type="number" name="time_limit_seconds" min="0" max="480"></label>
-        <label>Lives per player (1 to 4)<input type="number" name="lives" min="1" max="4"></label>
-        <label>Azure base URL<input type="text" name="azure_base_url" placeholder="https://your-resource.openai.azure.com"></label>
-        <label>Azure API key<input type="password" name="azure_api_key" id="azure-key" autocomplete="new-password"></label>
-        <label>Azure model name<input type="text" name="model"></label>
-        <label>Melee ISO path<input type="text" name="iso_path"></label>
-        <label class="check"><input type="checkbox" name="chat_enabled"> Helper chat on</label>
-        <label class="check"><input type="checkbox" name="record_replays"> Record replays</label>
-        <div class="row"><button class="btn btn-go" type="submit">SAVE SETTINGS</button><span id="settings-saved"></span></div>
+        <label>Öffentliche URL (vom Tunnel)<input type="text" name="public_url" placeholder="https://example.trycloudflare.com"></label>
+        <label>KI-Zeitlimit (Sekunden)<input type="number" name="agent_timeout_seconds" min="30" max="1800"></label>
+        <label>Kampf-Zeitlimit (Sekunden, 0 = bis nur noch einer übrig ist)<input type="number" name="time_limit_seconds" min="0" max="480"></label>
+        <label>Leben pro Spieler (1 bis 4)<input type="number" name="lives" min="1" max="4"></label>
+        <label>Azure-Basis-URL<input type="text" name="azure_base_url" placeholder="https://your-resource.openai.azure.com"></label>
+        <label>Azure-API-Schlüssel<input type="password" name="azure_api_key" id="azure-key" autocomplete="new-password"></label>
+        <label>Azure-Modellname<input type="text" name="model"></label>
+        <label>Pfad zur Melee-ISO<input type="text" name="iso_path"></label>
+        <label class="check"><input type="checkbox" name="chat_enabled"> Hilfe-Chat aktivieren</label>
+        <label class="check"><input type="checkbox" name="record_replays"> Wiederholungen aufzeichnen</label>
+        <div class="row"><button class="btn btn-go" type="submit">EINSTELLUNGEN SPEICHERN</button><span id="settings-saved"></span></div>
       </form>
-      <h3>AZURE CONNECTION</h3>
-      <p>Tries the values above, even before you save them: a plain answer, streaming, tool calls, reasoning and the safety filter.</p>
+      <h3>AZURE-VERBINDUNG</h3>
+      <p>Testet die Werte oben, auch vor dem Speichern: einfache Antworten, Streaming, Werkzeugaufrufe, logisches Denken und den Sicherheitsfilter.</p>
       <div class="row">
-        <button class="btn" id="llm-test" type="button">TEST CONNECTION</button>
-        <button class="btn btn-warn" id="forget-key" type="button">FORGET KEY</button>
+        <button class="btn" id="llm-test" type="button">VERBINDUNG TESTEN</button>
+        <button class="btn btn-warn" id="forget-key" type="button">SCHLÜSSEL LÖSCHEN</button>
       </div>
       <div class="llm-results" id="llm-results" aria-live="polite"></div>
-      <h3>DANGER ZONE</h3>
-      <p>Clears prompts, bots, chats and matches. Teams, links and settings stay.</p>
-      <button class="btn btn-stop" id="reset" type="button">RESET EVENT</button>
-    </section>
+      <h3>ACHTUNG</h3>
+      <p>Löscht Prompts, Bots, Chats und Kämpfe. Teams, Links und Einstellungen bleiben erhalten.</p>
+      <button class="btn btn-stop" id="reset" type="button">EVENT ZURÜCKSETZEN</button>
+    </details>
   </main>
 
   <dialog id="qr-dialog">
     <h2 id="qr-title"></h2>
-    <img class="qr-image" id="qr-image" alt="QR code for this team's link">
+    <img class="qr-image" id="qr-image" alt="QR-Code für den Zugangslink">
     <p class="qr-link" id="qr-link"></p>
-    <button class="btn" data-close type="button">CLOSE</button>
+    <button class="btn" data-close type="button">SCHLIESSEN</button>
   </dialog>
 
   <dialog id="scores-dialog">
-    <h2>SCOREBOARD</h2>
+    <h2>RANGLISTE</h2>
     <p class="scores-last" id="scores-dialog-last"></p>
     <ol class="scores scores-large" id="scores-dialog-list"></ol>
-    <button class="btn" data-close type="button">CLOSE</button>
+    <button class="btn" data-close type="button">SCHLIESSEN</button>
   </dialog>
 
   <dialog id="stage-dialog">
     <h2 id="stage-dialog-title"></h2>
     <img class="stage-map stage-map-large" id="stage-dialog-map" alt="">
     <p id="stage-dialog-about"></p>
-    <button class="btn" data-close type="button">CLOSE</button>
+    <button class="btn" data-close type="button">SCHLIESSEN</button>
   </dialog>
 
   <dialog id="character-dialog">
     <h2 id="character-title"></h2>
-    <p>Each team needs a different character.</p>
-    <select id="character-select" aria-label="Character"></select>
+    <p>Jedes Team braucht eine andere Figur.</p>
+    <select id="character-select" aria-label="Figur"></select>
     <div class="row">
-      <button class="btn btn-go" id="character-save" type="button">SAVE</button>
-      <button class="btn" data-close type="button">CANCEL</button>
+      <button class="btn btn-go" id="character-save" type="button">SPEICHERN</button>
+      <button class="btn" data-close type="button">ABBRECHEN</button>
     </div>
   </dialog>
 
   <dialog id="detail-dialog">
     <h2 id="detail-title"></h2>
     <div id="detail-body"></div>
-    <button class="btn" data-close type="button">CLOSE</button>
+    <button class="btn" data-close type="button">SCHLIESSEN</button>
   </dialog>
 
   <script src="/static/common.js"></script>

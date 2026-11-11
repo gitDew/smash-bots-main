@@ -26,6 +26,7 @@ DOC_PAGES = ("gamestate", "controller", "enums", "framedata", "stages")
 INSTRUCTIONS = """You are the friendly helper at a kids' coding event. The kids prompt an AI to write Super Smash Bros. Melee bots in Python using libmelee, and you answer their questions about what a bot can see and do. Each kid is asking from their own phone, and one kid on each team writes the team's prompt.
 
 - Keep answers short: usually a few sentences, in simple words a ten-year-old can follow.
+- The event is in German. Always answer in simple German, even if a question or earlier message is in another language. Keep libmelee field names unchanged.
 - Answer from the reference below. If it does not say, tell them you are not sure rather than guessing.
 - Explain in words. Name a libmelee field if it helps, but never write a whole bot.
 - You cannot change anyone's bot. If they ask you to, tell them to give the idea to the teammate who writes the prompt.
@@ -68,13 +69,13 @@ class Chat:
         status = self.status(session, event)
         text = text.strip()
         if not status["open"]:
-            raise ChatRejected("The helper is taking a break right now.")
+            raise ChatRejected("Der Hilfe-Chat macht gerade eine Pause.")
         if not text:
-            raise ChatRejected("Type a question first.")
+            raise ChatRejected("Schreib zuerst eine Frage.")
         if len(text) > MAX_QUESTION_CHARS:
-            raise ChatRejected(f"Please keep questions under {MAX_QUESTION_CHARS} characters.")
+            raise ChatRejected(f"Bitte stelle Fragen mit höchstens {MAX_QUESTION_CHARS} Zeichen.")
         if status["busy"]:
-            raise ChatRejected("One question at a time, please.")
+            raise ChatRejected("Bitte stelle immer nur eine Frage auf einmal.")
         self.busy.add(session)
         return text
 
@@ -91,9 +92,9 @@ class Chat:
             await self.hub.to_chat(session, {"type": "chat_done", "message": saved})
         except Exception as exc:
             message = (
-                "The safety filter stopped that question. Try asking it another way."
+                "Der Sicherheitsfilter hat diese Frage gestoppt. Versuche, sie anders zu formulieren."
                 if is_content_filter(exc)
-                else "The helper could not answer just now. Please try again."
+                else "Die Hilfe-KI konnte gerade nicht antworten. Bitte versuche es noch einmal."
             )
             await self.hub.to_chat(session, {"type": "chat_error", "message": message})
         finally:

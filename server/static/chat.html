@@ -1,19 +1,19 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <title>Smash Bots Helper</title>
+  <title>Smash Bots Hilfe</title>
   <link rel="stylesheet" href="/static/retro.css">
 </head>
 <body>
   <header class="top">
     <div class="logo"><div>SMASH<span>BOTS</span></div></div>
-    <div class="team-name">HELPER</div>
+    <div class="team-name">HILFE</div>
   </header>
 
-  <div class="banner" id="connection" hidden>RECONNECTING...</div>
+  <div class="banner" id="connection" hidden>VERBINDUNG WIRD WIEDERHERGESTELLT...</div>
 
   <main class="chat-page">
     <section class="status" id="status" data-mood="wait" aria-live="polite">
@@ -25,7 +25,7 @@
           <rect x="0" y="5" width="10" height="7" fill="#e6dfcd"/>
           <rect x="4" y="7" width="2" height="3" fill="#7d3b2f"/>
         </svg>
-        <span id="status-label">LOADING</span>
+        <span id="status-label">LÄDT</span>
       </div>
       <div class="status-title" id="status-title">...</div>
       <div class="status-clock" id="status-clock" hidden></div>
@@ -41,25 +41,25 @@
     </section>
 
     <section class="panel">
-      <h2>ASK THE HELPER</h2>
-      <p class="chat-note">Ask anything about what a bot can see and do. Only you see your questions. Got a great idea? Tell the teammate writing your prompt!</p>
+      <h2>FRAG DIE KI</h2>
+      <p class="chat-note">Frag alles darüber, was ein Bot sehen und tun kann. Nur du siehst deine Fragen. Hast du eine tolle Idee? Sag sie der Person in deinem Team, die euren Prompt schreibt!</p>
       <div class="chat-log" id="chat-log" aria-live="polite"></div>
       <form class="chat-form" id="chat-form">
-        <input type="text" id="chat-input" maxlength="500" autocomplete="off" aria-label="Your question" placeholder="Can we see the other players?">
-        <button class="btn btn-go" id="chat-send" type="submit">ASK</button>
+        <input type="text" id="chat-input" maxlength="500" autocomplete="off" aria-label="Deine Frage" placeholder="Können wir die anderen Spieler sehen?">
+        <button class="btn btn-go" id="chat-send" type="submit">FRAGEN</button>
       </form>
       <div class="chat-foot" id="chat-foot"></div>
     </section>
 
     <section class="panel" id="scores-card" hidden>
-      <h2>SCOREBOARD</h2>
+      <h2>RANGLISTE</h2>
       <p class="scores-last" id="scores-last"></p>
       <ol class="scores" id="scores-list"></ol>
     </section>
 
     <section class="panel">
       <details class="help-sheet">
-        <summary>WHAT CAN MY BOT SEE?</summary>
+        <summary>WAS KANN MEIN BOT SEHEN?</summary>
         <div id="cheatsheet"></div>
       </details>
     </section>

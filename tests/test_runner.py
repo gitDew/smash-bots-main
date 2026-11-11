@@ -338,9 +338,9 @@ class RunnerTests(unittest.TestCase):
             with self.subTest(count=count):
                 result, bots, controllers, output, _ = self.run_mocked_match(count)
                 self.assertEqual(result, 0)
-                self.assertIn(f"Player {count} wins on time", output)
+                self.assertIn(f"Spieler {count} gewinnt nach Zeitablauf", output)
                 for port in range(1, count + 1):
-                    self.assertIn(f"Player {port}:", output)
+                    self.assertIn(f"Spieler {port}:", output)
                     bots[port].send.assert_called_once()
                     bots[port].get_character.assert_not_called()
                     self.assertIs(bots[port].apply.call_args.args[0], controllers[port])
@@ -349,7 +349,7 @@ class RunnerTests(unittest.TestCase):
         result, bots, controllers, output, _ = self.run_mocked_match(3, idle_ports=(1, 3))
         self.assertEqual(result, 0)
         self.assertEqual(set(bots), {2})
-        self.assertIn("Player 1 bot: none, stands still", output)
+        self.assertIn("Bot von Spieler 1: keiner, steht still", output)
         for port in (1, 3):
             controllers[port].release_all.assert_called()
             controllers[port].press_button.assert_not_called()
@@ -361,15 +361,15 @@ class RunnerTests(unittest.TestCase):
             2, stage="BATTLEFIELD", game_stage=melee.Stage.BATTLEFIELD,
         )
         self.assertEqual(result, 0)
-        self.assertIn("Selected stage: BATTLEFIELD", output)
+        self.assertIn("Ausgewählte Bühne: BATTLEFIELD", output)
         picked = {c.kwargs["stage_selected"] for c in self.menu_helper.menu_helper_simple.call_args_list}
         self.assertEqual(picked, {melee.Stage.BATTLEFIELD})
-        self.assertNotIn("Warning", errors)
+        self.assertNotIn("Warnung", errors)
         result, _, _, _, errors = self.run_mocked_match(
             2, stage="BATTLEFIELD", game_stage=melee.Stage.DREAMLAND,
         )
         self.assertEqual(result, 0)
-        self.assertIn("the game is on DREAMLAND, not BATTLEFIELD", errors)
+        self.assertIn("Das Spiel läuft auf DREAMLAND, nicht auf BATTLEFIELD", errors)
 
     def test_bots_that_stop_playing_are_named_in_the_log(self):
         self.assertIsNone(runner.bot_trouble({"missed_frames": 0, "exceptions": 0, "bad_replies": 0}))
@@ -378,37 +378,37 @@ class RunnerTests(unittest.TestCase):
             "missed_frames": 1446, "exceptions": 0, "bad_replies": 0, "last_error": None,
             "output": ["Traceback ...", "TypeError: Object of type int32 is not JSON serializable"],
         })
-        self.assertIn("missed 1446 frames", line)
+        self.assertIn("1446 Spielbilder verpasst", line)
         self.assertIn("int32 is not JSON serializable", line)
 
     def test_rejects_match_that_did_not_include_every_configured_player(self):
         result, bots, _, _, errors = self.run_mocked_match(4, missing_port=4)
         self.assertEqual(result, 1)
-        self.assertIn("missing ports [4]", errors)
+        self.assertIn("fehlende Anschlüsse [4]", errors)
         for bot in bots.values():
             bot.send.assert_not_called()
 
     def test_rejects_unexpected_player_and_team_mode(self):
         result, _, _, _, errors = self.run_mocked_match(3, unexpected_port=4)
         self.assertEqual(result, 1)
-        self.assertIn("unexpected ports [4]", errors)
+        self.assertIn("unerwartete Anschlüsse [4]", errors)
         result, _, _, _, errors = self.run_mocked_match(4, team_mode=True)
         self.assertEqual(result, 1)
-        self.assertIn("Team mode is enabled", errors)
+        self.assertIn("Der Teammodus ist aktiviert", errors)
 
     def test_interrupt_finalizes_recording_and_stops_dolphin(self):
         result, _, _, output, _ = self.run_mocked_match(2, interrupted=True)
         self.assertEqual(result, 130)
-        self.assertIn("Interrupted.", output)
-        self.assertIn("Replay saved:", output)
+        self.assertIn("Abgebrochen.", output)
+        self.assertIn("Wiederholung gespeichert:", output)
 
     def test_with_no_time_limit_the_match_lasts_until_one_player_is_left(self):
         for count, survivor in ((2, 1), (4, 3)):
             with self.subTest(count=count):
                 result, bots, _, output, _ = self.run_mocked_match(count, last_one_standing=survivor, lives=0)
                 self.assertEqual(result, 0)
-                self.assertNotIn("Time limit reached", output)
-                self.assertIn(f"Match finished: Player {survivor} wins.", output)
+                self.assertNotIn("Zeitlimit erreicht", output)
+                self.assertIn(f"Kampf beendet: Spieler {survivor} gewinnt.", output)
                 # Frame 5000 is long past any old fixed length, and the bots still played it.
                 self.assertEqual(bots[1].send.call_count, 2)
 
@@ -423,8 +423,8 @@ class RunnerTests(unittest.TestCase):
         frames = [self.game(frame, {1: 1, 2: 1}) for frame in (100, 150, 190)]
         result, bots, _, output, _ = self.run_mocked_match(2, game_frames=frames)
         self.assertEqual(result, 0)
-        self.assertIn("Player 2 is out.", output)
-        self.assertIn("Last player standing: Player 1 wins.", output)
+        self.assertIn("Spieler 2 ist raus.", output)
+        self.assertIn("Letzter Spieler übrig: Spieler 1 gewinnt.", output)
         # The game runs on a moment so the knockout is seen; the loser gets no more frames.
         self.assertEqual(bots[1].send.call_count, 3)
         self.assertEqual(bots[2].send.call_count, 1)
@@ -437,8 +437,8 @@ class RunnerTests(unittest.TestCase):
         ]
         result, bots, _, output, _ = self.run_mocked_match(3, lives=1, game_frames=frames)
         self.assertEqual(result, 0)
-        self.assertLess(output.index("Player 3 is out."), output.index("Player 2 is out."))
-        self.assertIn("Last player standing: Player 1 wins.", output)
+        self.assertLess(output.index("Spieler 3 ist raus."), output.index("Spieler 2 ist raus."))
+        self.assertIn("Letzter Spieler übrig: Spieler 1 gewinnt.", output)
         seen_by_one = bots[1].send.call_args_list[1].args[0]
         self.assertEqual(set(seen_by_one.players), {1, 2})
         self.assertEqual(bots[3].send.call_count, 1)
@@ -446,7 +446,7 @@ class RunnerTests(unittest.TestCase):
     def test_closing_dolphin_stops_the_match_cleanly(self):
         result, _, _, output, errors = self.run_mocked_match(2, dolphin_closed=True)
         self.assertEqual(result, 130)
-        self.assertIn("Dolphin was closed", output)
+        self.assertIn("Dolphin wurde geschlossen", output)
         self.assertNotIn("Traceback", errors)
 
     def test_recording_failures_are_reported(self):
@@ -454,18 +454,18 @@ class RunnerTests(unittest.TestCase):
         result, _, _, output, errors = self.run_mocked_match(2, recording_error=error)
         self.assertEqual(result, 1)
         self.assertIn("disk full", errors)
-        self.assertNotIn("Replay saved:", output)
+        self.assertNotIn("Wiederholung gespeichert:", output)
         result, _, _, output, errors = self.run_mocked_match(2, stop_error=error)
         self.assertEqual(result, 1)
         self.assertIn("disk full", errors)
-        self.assertNotIn("Replay saved:", output)
+        self.assertNotIn("Wiederholung gespeichert:", output)
 
     def test_missing_native_frame_dump_stops_the_match(self):
         error = runner.RecordingError("Dolphin did not produce a frame dump")
         result, _, _, output, errors = self.run_mocked_match(2, frame_error=error)
         self.assertEqual(result, 1)
         self.assertIn("did not produce a frame dump", errors)
-        self.assertNotIn("Replay saved:", output)
+        self.assertNotIn("Wiederholung gespeichert:", output)
 
     def test_graphics_backend_can_be_overridden(self):
         result, _, _, _, _ = self.run_mocked_match(2, gfx_backend="OGL")
@@ -474,7 +474,7 @@ class RunnerTests(unittest.TestCase):
     def test_recording_can_be_disabled(self):
         result, _, _, output, _ = self.run_mocked_match(2, no_record=True)
         self.assertEqual(result, 0)
-        self.assertNotIn("Recording to:", output)
+        self.assertNotIn("Aufnahme wird gespeichert unter:", output)
 
     def test_incomplete_countdown_and_missing_eliminated_player(self):
         result, bots, _, _, _ = self.run_mocked_match(

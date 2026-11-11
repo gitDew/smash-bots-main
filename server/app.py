@@ -39,11 +39,11 @@ SECURITY_HEADERS = {
 }
 
 NOT_FOUND_PAGE = """<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>Smash Bots</title>
+<html lang="de"><head><meta charset="utf-8"><title>Smash Bots</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/static/retro.css"></head>
-<body class="center-page"><div class="panel"><h1>NO TEAM HERE</h1>
-<p>Open the link or QR code your team was given.</p></div></body></html>"""
+<body class="center-page"><div class="panel"><h1>KEIN ZUGANG HIER</h1>
+<p>Öffne den Link oder scanne den QR-Code, den du von der Spielleitung bekommen hast.</p></div></body></html>"""
 
 
 def _new_app() -> FastAPI:
@@ -213,7 +213,7 @@ class LlmTestBody(BaseModel):
 
 def _require_web_url(url: str | None, label: str) -> None:
     if url and urlsplit(url).scheme not in ("http", "https"):
-        raise EventError(f"The {label} must start with https://")
+        raise EventError(f"Die {label} muss mit https:// beginnen.")
 
 
 def create_admin_app(event: Event, *, port: int) -> FastAPI:
@@ -228,9 +228,9 @@ def create_admin_app(event: Event, *, port: int) -> FastAPI:
         # A web page cannot set this header cross-site without a CORS preflight,
         # which this app never approves; the Host check stops DNS rebinding.
         if request.headers.get("host") not in allowed_hosts:
-            return JSONResponse({"detail": "Admin is only available on this machine."}, status_code=403)
+            return JSONResponse({"detail": "Die Verwaltung ist nur auf diesem Computer erreichbar."}, status_code=403)
         if request.method not in ("GET", "HEAD") and request.headers.get(ADMIN_HEADER) != "1":
-            return JSONResponse({"detail": "Missing admin header."}, status_code=403)
+            return JSONResponse({"detail": "Die Admin-Kennung in der Anfrage fehlt."}, status_code=403)
         return await call_next(request)
 
     @app.exception_handler(EventError)
@@ -323,20 +323,20 @@ def create_admin_app(event: Event, *, port: int) -> FastAPI:
     async def test_llm(body: LlmTestBody) -> dict:
         saved = event.db.settings()
         base_url = saved["azure_base_url"] if body.azure_base_url is None else body.azure_base_url
-        _require_web_url(base_url, "Azure base URL")
+        _require_web_url(base_url, "Azure-Basis-URL")
         client = azure_client(
             base_url, body.azure_api_key or saved["azure_api_key"],
             timeout=LLM_TEST_TIMEOUT_SECONDS, max_retries=0,
         )
         if client is None:
-            raise EventError("Enter the Azure base URL and API key first.")
+            raise EventError("Gib zuerst die Azure-Basis-URL und den API-Schlüssel ein.")
         return {"checks": await run_checks(client, body.model or saved["model"])}
 
     @app.put("/api/settings")
     async def update_settings(body: SettingsBody) -> dict:
         values = body.model_dump(exclude_none=True)
-        _require_web_url(values.get("public_url"), "public URL")
-        _require_web_url(values.get("azure_base_url"), "Azure base URL")
+        _require_web_url(values.get("public_url"), "öffentliche URL")
+        _require_web_url(values.get("azure_base_url"), "Azure-Basis-URL")
         event.db.update_settings(values)
         if "azure_base_url" in values or "azure_api_key" in values:
             saved = event.db.settings()

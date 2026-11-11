@@ -245,6 +245,7 @@ class CharacterTests(EventCase):
         system = self.client.responses.requests[0]["instructions"]
         self.assertIn("This team fights as Marth", system)
         self.assertIn("no code can change it", system)
+        self.assertIn("Always write your replies to the kids and your code comments in simple German", system)
 
     async def test_agent_rules_say_a_bot_cannot_choose(self):
         rules = (Path(__file__).resolve().parents[1] / "server" / "chat_context" / "rules.md").read_text()
@@ -322,14 +323,14 @@ class AgentTests(EventCase):
     async def test_content_filter_gets_a_friendly_message(self):
         self.client.responses.script = [RuntimeError("content_filter triggered")]
         run = await self.run_round()
-        self.assertIn("safety filter", run["error"])
+        self.assertIn("Sicherheitsfilter", run["error"])
 
     async def test_filtered_reply_keeps_the_bot_and_tells_the_kids(self):
         original = self.starter()
         self.client.responses.script = [reply(reason="content_filter")]
         run = await self.run_round()
         self.assertEqual(run["status"], "failed")
-        self.assertIn("safety filter", run["error"])
+        self.assertIn("Sicherheitsfilter", run["error"])
         self.assertEqual(self.starter(), original)
 
     async def test_earlier_prompts_and_crashes_reach_the_next_round(self):
@@ -438,8 +439,8 @@ class ActivityTests(EventCase):
         )
         labels = [e["label"] for e in self.entries(self.team_socket)]
         self.assertEqual(labels, [
-            "Reading your idea", "Reading the event rules", "Testing your bot",
-            "Test passed!", "All done! Your bot is ready",
+            "Deine Idee wird gelesen", "Die Event-Regeln werden gelesen", "Dein Bot wird getestet",
+            "Test bestanden!", "Fertig! Dein Bot ist bereit",
         ])
         ids = [e["id"] for e in self.entries(self.admin_socket)]
         self.assertEqual(ids, sorted(ids))
@@ -469,7 +470,7 @@ class ActivityTests(EventCase):
     async def test_a_new_page_gets_the_history_without_details(self):
         await self.run_round(reply(calls=[tool_call("run_command", command="echo hi")]), reply("done"))
         history = self.event.team_activity(self.team_id)
-        self.assertIn("Trying things out", [e["label"] for e in history])
+        self.assertIn("Ideen werden ausprobiert", [e["label"] for e in history])
         self.assertTrue(all("detail" not in e and e["label"] for e in history))
         self.assertTrue(any("echo hi" in (e["detail"] or "") for e in self.event.admin_activity()))
 
@@ -505,6 +506,7 @@ class ChatTests(EventCase):
         system = self.client.responses.requests[0]["instructions"]
         self.assertIn("gamestate.distance", system)
         self.assertIn("PlayerState", system)
+        self.assertIn("Always answer in simple German", system)
 
     async def test_chat_has_no_tools(self):
         self.client.responses.script = [["ok"]]
@@ -569,7 +571,7 @@ class ChatTests(EventCase):
         cut_off = NS(type="response.incomplete", response=reply(reason="content_filter"))
         self.client.responses.script = [["Well, ", cut_off]]
         await self.ask()
-        self.assertIn("safety filter", [m for m in socket.sent if m["type"] == "chat_error"][0]["message"])
+        self.assertIn("Sicherheitsfilter", [m for m in socket.sent if m["type"] == "chat_error"][0]["message"])
 
     async def test_a_failed_stream_is_not_saved_as_an_answer(self):
         self.client.responses.script = [["half an ", NS(type="error", code="server_error", message="boom")]]
@@ -758,7 +760,7 @@ class StageTests(EventCase):
         self.assertIsNone(self.event.chat_state(SESSION)["stage"])
         await self.event.open_round(90, "POKEMON_STADIUM")
         for state in (self.event.team_state(self.team), self.event.chat_state(SESSION)):
-            self.assertEqual(state["stage"]["name"], "Pokémon Stadium")
+            self.assertEqual(state["stage"]["name"], "Pokémon-Stadion")
             self.assertEqual(state["stage"]["image"], "/stages/POKEMON_STADIUM.svg")
         self.assertIn("FINAL_DESTINATION", self.event.admin_state()["stages"])
 
@@ -771,7 +773,7 @@ class StageTests(EventCase):
         self.assertIn("melee.Stage.FOUNTAIN_OF_DREAMS", self.client.responses.requests[0]["input"][0]["content"])
         self.event.admit_question(SESSION, "Which stage is it?")
         await self.finish_background()
-        self.assertIn("Fountain of Dreams", self.client.responses.requests[1]["instructions"])
+        self.assertIn("Traumbrunnen", self.client.responses.requests[1]["instructions"])
 
     async def test_a_match_is_played_on_its_rounds_stage(self):
         await self.play_round(stage="DREAMLAND")
@@ -779,7 +781,7 @@ class StageTests(EventCase):
         await self.finish_background()
         self.assertEqual(self.runner_stage(), "DREAMLAND")
         self.assertEqual(self.db.matches()[0]["stage"], "DREAMLAND")
-        self.assertEqual(self.event.admin_state()["matches"][0]["stage"], "Dream Land")
+        self.assertEqual(self.event.admin_state()["matches"][0]["stage"], "Traumland")
         self.assertEqual(sorted(self.docker.restarted), sorted(self.both))
 
     async def test_a_test_match_before_round_one_uses_the_picked_stage(self):
@@ -827,7 +829,7 @@ class StageTests(EventCase):
         self.assertEqual(self.event.team_state(self.team)["scores"]["last"], None)
         self.add_match(1, "finished", self.team_id)
         mine = self.event.team_state(self.team)["scores"]["last"]
-        self.assertEqual((mine["winner"], mine["won"], mine["stage"]), ("Thunder", True, "Battlefield"))
+        self.assertEqual((mine["winner"], mine["won"], mine["stage"]), ("Thunder", True, "Schlachtfeld"))
         theirs = self.event.team_state(self.db.team(self.other["id"]))["scores"]["last"]
         self.assertFalse(theirs["won"])
         self.assertEqual(self.event.chat_state(SESSION)["scores"]["last"]["winner"], "Thunder")
@@ -865,7 +867,7 @@ class StageMapTests(unittest.TestCase):
         for label in (">x=-68<", ">x=68<", ">y=27<", ">y=54<"):
             self.assertIn(label, SVGS["BATTLEFIELD"])
         self.assertNotIn(">y=", SVGS["FINAL_DESTINATION"])
-        self.assertIn(">moves<", SVGS["FOUNTAIN_OF_DREAMS"])
+        self.assertIn(">bewegt sich<", SVGS["FOUNTAIN_OF_DREAMS"])
 
 
 class HttpTests(unittest.TestCase):
@@ -881,6 +883,28 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(self.teams.get(f"/t/{self.team['token']}").status_code, 200)
         self.assertEqual(self.teams.get("/t/00000000-0000-4000-8000-000000000000").status_code, 404)
         self.assertEqual(self.teams.get("/").status_code, 404)
+
+    def test_all_pages_and_the_help_sheet_are_in_german(self):
+        pages = (
+            (self.teams.get(f"/t/{self.team['token']}"), "DEIN PROMPT"),
+            (self.teams.get(f"/c/{self.chat_token()}"), "FRAG DIE KI"),
+            (self.admin.get("/"), "SPIELLEITUNG"),
+            (self.teams.get("/"), "KEIN ZUGANG HIER"),
+        )
+        for response, heading in pages:
+            with self.subTest(heading=heading):
+                self.assertIn('<html lang="de">', response.text)
+                self.assertIn(heading, response.text)
+                self.assertNotIn("RECONNECTING", response.text)
+        help_sheet = self.teams.get("/cheatsheet.md").text
+        self.assertIn("# Was dein Bot sehen kann", help_sheet)
+        self.assertIn("`gamestate.players`", help_sheet)
+        self.assertIn("`stock`", help_sheet)
+
+    def test_admin_errors_are_in_german(self):
+        response = self.admin.post("/api/round/close", headers={"X-Smash-Admin": "1"})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["detail"], "Es ist keine Runde geöffnet.")
 
     def test_team_site_has_no_admin_routes(self):
         for path in ("/api/settings", "/api/round/open", "/admin-static/admin.js", "/docs"):
@@ -920,7 +944,7 @@ class HttpTests(unittest.TestCase):
             response = client.get("/stages/YOSHIS_STORY.svg")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.headers["content-type"], "image/svg+xml")
-            self.assertIn("Map of Yoshi's Story", response.text)
+            self.assertIn("Karte von Yoshis Story", response.text)
             self.assertEqual(client.get("/stages/NO_STAGE.svg").status_code, 404)
             self.assertEqual(client.get("/stages/..%2Fapp.py.svg").status_code, 404)
 
@@ -1010,7 +1034,7 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(self.admin.post("/api/teams", json={"name": "NoCharacter"}, headers=headers).status_code, 422)
         taken = self.admin.post("/api/teams", json={"name": "Copy", "character": "FOX"}, headers=headers)
         self.assertEqual(taken.status_code, 409)
-        self.assertIn("already taken", taken.json()["detail"])
+        self.assertIn("wird bereits", taken.json()["detail"])
 
     def test_saved_key_is_never_sent_to_a_page(self):
         headers = {"X-Smash-Admin": "1"}
@@ -1174,7 +1198,7 @@ class ConnectionCheckTests(unittest.IsolatedAsyncioTestCase):
         client = self.client(*self.healthy())
         results = await run_checks(client, "gpt-6-luna")
         self.assertEqual([r["status"] for r in results], ["pass"] * 5)
-        self.assertIn("120 reasoning tokens", results[3]["detail"])
+        self.assertIn("120 Denk-Tokens", results[3]["detail"])
         self.assertEqual({r["model"] for r in client.responses.requests}, {"gpt-6-luna"})
 
     async def test_tool_round_trip_sends_the_result_back(self):
@@ -1206,7 +1230,7 @@ class ConnectionCheckTests(unittest.IsolatedAsyncioTestCase):
         script[5] = reply(reason="content_filter")
         results = await run_checks(self.client(*script), "m")
         self.assertEqual(results[4]["status"], "warn")
-        self.assertIn("safety filter", results[4]["detail"])
+        self.assertIn("Sicherheitsfilter", results[4]["detail"])
 
     async def test_a_failed_connection_skips_the_rest_and_hides_the_key(self):
         results = await run_checks(self.client(RuntimeError("bad key very-secret")), "m")
