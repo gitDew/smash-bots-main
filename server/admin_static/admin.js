@@ -244,6 +244,13 @@ function matchStageText(s) {
   return "Vor der ersten Runde finden Kämpfe auf der unter NÄCHSTE RUNDE ausgewählten Bühne statt.";
 }
 
+function renderReplays(replays) {
+  $("replays").replaceChildren(...(replays.length ? replays.map((replay) => el("a", {
+    className: "btn", textContent: `VIDEO ANSEHEN · ${replay.name}`,
+    href: replay.url, target: "_blank", rel: "noopener noreferrer",
+  })) : [el("p", { textContent: "Noch keine Kampf-Videos gespeichert." })]));
+}
+
 function render(s) {
   state = s;
   $("status").dataset.mood = MOODS[s.phase];
@@ -271,6 +278,7 @@ function render(s) {
     textContent: `Runde ${match.round}${match.stage ? ` auf ${match.stage}` : ""}: ${match.teams.join(" gegen ")}. ${STATUS_LABELS[match.status] || match.status}`,
   })));
   $("match-stage").textContent = matchStageText(s);
+  renderReplays(s.replays || []);
   $("points-teams").replaceChildren(...s.teams.map(pointsRow));
 
   $("chat-stats").textContent = `${s.chat.phones} ${s.chat.phones === 1 ? "Handy verbunden" : "Handys verbunden"}. ${s.chat.questions} ${s.chat.questions === 1 ? "Frage" : "Fragen"} in dieser Runde beantwortet.`;

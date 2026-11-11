@@ -17,6 +17,7 @@ from server.containers import DockerError
 from server.event import MAX_FIGHT_SECONDS, MAX_PROMPT_SECONDS, MIN_PROMPT_SECONDS, Event, EventError
 from server.llm import azure_client
 from server.llm_check import run_checks
+from server.replays import replay_path
 from server.stages import SVGS
 
 
@@ -246,6 +247,13 @@ def create_admin_app(event: Event, *, port: int) -> FastAPI:
     @app.get("/")
     async def admin_page() -> FileResponse:
         return FileResponse(ADMIN_STATIC / "admin.html")
+
+    @app.get("/replays/{name}")
+    async def replay_video(name: str) -> FileResponse:
+        path = replay_path(name)
+        if path is None:
+            raise HTTPException(status_code=404)
+        return FileResponse(path, media_type="video/mp4", headers={"Content-Disposition": "inline"})
 
     @app.websocket("/ws")
     async def admin_socket(socket: WebSocket) -> None:

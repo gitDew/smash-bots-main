@@ -1003,9 +1003,46 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(response.json()["detail"], "Es ist keine Runde geöffnet.")
 
     def test_team_site_has_no_admin_routes(self):
-        for path in ("/api/settings", "/api/round/open", "/admin-static/admin.js", "/docs"):
+        for path in ("/api/settings", "/api/round/open", "/admin-static/admin.js", "/replays/round_1.mp4", "/docs"):
             self.assertEqual(self.teams.get(path).status_code, 404, path)
             self.assertEqual(self.teams.post(path).status_code in (404, 405), True, path)
+
+    def test_admin_lists_only_finished_recordings_newest_first(self):
+        with tempfile.TemporaryDirectory() as directory, patch("server.replays.REPLAY_DIR", Path(directory)):
+            root = Path(directory)
+            self.assertEqual(self.event.admin_state()["replays"], [])
+            for number in (1, 2, 3, 4, 10):
+                (root / f"round_{number}.mp4").write_bytes(b"video")
+            (root / "round_2.log").write_text("still saving or failed")
+            (root / ".round_3.dolphin").mkdir()
+            (root / "round_4.mp4").write_bytes(b"")
+            (root / "round_5.mp4").symlink_to(root / "round_1.mp4")
+            (root / "round_6.mp4").mkdir()
+            (root / "other.mp4").write_bytes(b"not a fight recording")
+            self.assertEqual(self.event.admin_state()["replays"], [
+                {"name": "round_10.mp4", "url": "/replays/round_10.mp4"},
+                {"name": "round_1.mp4", "url": "/replays/round_1.mp4"},
+            ])
+            for name in ("round_2.mp4", "round_3.mp4", "round_4.mp4", "round_5.mp4", "round_6.mp4", "other.mp4", "round_2.log"):
+                self.assertEqual(self.admin.get(f"/replays/{name}").status_code, 404, name)
+
+    def test_admin_serves_video_inline_with_seeking_and_local_access_only(self):
+        with tempfile.TemporaryDirectory() as directory, patch("server.replays.REPLAY_DIR", Path(directory)):
+            (Path(directory) / "round_1.mp4").write_bytes(b"0123456789")
+            path = "/replays/round_1.mp4"
+            response = self.admin.get(path)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.content, b"0123456789")
+            self.assertEqual(response.headers["content-type"], "video/mp4")
+            self.assertEqual(response.headers["content-disposition"], "inline")
+            response = self.admin.get(path, headers={"Range": "bytes=2-5"})
+            self.assertEqual(response.status_code, 206)
+            self.assertEqual(response.content, b"2345")
+            self.assertEqual(response.headers["content-range"], "bytes 2-5/10")
+            self.assertEqual(self.teams.get(path).status_code, 404)
+            self.assertEqual(self.admin.get(path, headers={"Host": "evil.example"}).status_code, 403)
+            self.assertEqual(self.admin.get("/replays/round_99.mp4").status_code, 404)
+            self.assertEqual(self.admin.get("/replays/%2e%2e%2frequirements.txt").status_code, 404)
 
     def test_admin_rejects_other_hosts_and_missing_header(self):
         self.assertEqual(self.admin.post("/api/round/open").status_code, 403)

@@ -24,6 +24,7 @@ from server.containers import Docker, DockerError
 from server.db import Database
 from server.hub import Hub
 from server.match import MATCH_DIR, MatchRunner, read_result, runner_command
+from server.replays import saved_replays
 from server.stages import DEFAULT_STAGE, STAGES, stage_info
 
 
@@ -559,6 +560,7 @@ class Event:
             "settings": {key: value for key, value in settings.items() if key != "azure_api_key"},
             "characters": CHARACTERS,
             "matches": matches, "match_log": list(self.match_log),
+            "replays": saved_replays(),
             "chat": {
                 "link": self.chat_link(settings),
                 "questions": self.db.chat_answers_total(event["round"]),

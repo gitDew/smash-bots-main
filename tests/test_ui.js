@@ -88,6 +88,20 @@ test("admin manual points table preserves names and disables subtraction at zero
   assert.equal(vm.runInContext('pointsRow({id: 1, name: "Team A", points: 1}).children[2].children[1].disabled', context), false);
 });
 
+test("admin recording links open videos in a new tab", () => {
+  const { context, elements } = page("server/admin_static/admin.js");
+  vm.runInContext('renderReplays([])', context);
+  assert.equal(elements.get("replays").children[0].textContent, "Noch keine Kampf-Videos gespeichert.");
+  vm.runInContext('renderReplays([{name: "round_10.mp4", url: "/replays/round_10.mp4"}])', context);
+  const link = elements.get("replays").children[0];
+  assert.equal(link.textContent, "VIDEO ANSEHEN · round_10.mp4");
+  assert.equal(link.href, "/replays/round_10.mp4");
+  assert.equal(link.target, "_blank");
+  assert.equal(link.rel, "noopener noreferrer");
+  const html = fs.readFileSync(path.join(__dirname, "..", "server/admin_static/admin.html"), "utf8");
+  assert.match(html, /KAMPF-VIDEOS<\/h3>\s*<div class="row" id="replays">/);
+});
+
 test("ranking component is removed from all pages", () => {
   for (const file of ["server/admin_static/admin.html", "server/static/team.html", "server/static/chat.html"]) {
     const html = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
