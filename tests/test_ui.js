@@ -88,6 +88,22 @@ test("admin manual points table preserves names and disables subtraction at zero
   assert.equal(vm.runInContext('pointsRow({id: 1, name: "Team A", points: 1}).children[2].children[1].disabled', context), false);
 });
 
+test("admin demo needs only two to four selected teams before the first round", () => {
+  const { context, elements } = page("server/admin_static/admin.js");
+  vm.runInContext('state = {phase: "setup", round: 0};', context);
+  for (const count of [0, 1, 2, 3, 4, 5]) {
+    vm.runInContext(`selected.clear(); for (let id = 1; id <= ${count}; id++) selected.add(id); updateButtons();`, context);
+    assert.equal(elements.get("demo-match").disabled, count < 2 || count > 4);
+  }
+  vm.runInContext('selected.clear(); selected.add(1); selected.add(2); api = (method, path, body) => { globalThis.request = {method, path, body}; };', context);
+  elements.get("match-minutes").value = "5";
+  elements.get("round-stage").value = "BATTLEFIELD";
+  elements.get("demo-match").onclick();
+  assert.equal(context.request.path, "/api/match/start");
+  assert.equal(context.request.body.demo, true);
+  assert.deepEqual(Array.from(context.request.body.team_ids), [1, 2]);
+});
+
 test("admin recording links open videos in a new tab", () => {
   const { context, elements } = page("server/admin_static/admin.js");
   vm.runInContext('renderReplays([])', context);
@@ -151,4 +167,40 @@ test("admin fight time sits next to start match and is sent in seconds", () => {
   assert.match(html, /Maximale Kampf-Zeit \(Minuten\)<input[^>]*id="match-minutes"[^>]*value="5"[^>]*><\/label>\s*<button[^>]*id="start-match"/);
   assert.doesNotMatch(html, /round-fight-minutes/);
   assert.doesNotMatch(html, /name="time_limit_seconds"/);
+});
+
+test("team logo appears, updates and is hidden when removed", () => {
+  const { context, elements } = page("server/static/team.js");
+  vm.runInContext('renderStage = renderStartChoice = renderAgent = renderCode = () => {};', context);
+  const logo = context.document.getElementById("team-logo");
+  logo.getAttribute = (name) => logo[name];
+  logo.removeAttribute = (name) => { delete logo[name]; };
+  for (const source of ["/t/test/logo?v=first", "/t/test/logo?v=second", null]) {
+    context.logoSource = source;
+    vm.runInContext('renderState({phase: "setup", round: 0, team: {name: "Team <A>", points: 0, logo: logoSource}, prompt: "", prompt_open: false})', context);
+    assert.equal(elements.get("team-logo").hidden, source === null);
+    assert.equal(logo.src, source ?? undefined);
+    assert.equal(logo.alt, "Logo von Team <A>");
+  }
+});
+
+test("admin logo upload uses the file body and offers replacement and removal", async () => {
+  const { context } = page("server/admin_static/admin.js");
+  vm.runInContext('api = async (method, path, body, raw) => { globalThis.request = {method, path, body, raw}; return {ok: true}; };', context);
+  const empty = vm.runInContext('logoCell({id: 1, name: "Team <A>", logo: null})', context);
+  assert.equal(empty.children[0].accept, "image/png,image/jpeg,image/webp");
+  assert.equal(empty.children[1].textContent, "LOGO HOCHLADEN");
+  const file = {size: 100, type: "image/png"};
+  empty.children[0].files = [file];
+  await empty.children[0].onchange();
+  assert.equal(context.request.path, "/api/teams/1/logo");
+  assert.equal(context.request.method, "PUT");
+  assert.equal(context.request.body, file);
+  assert.equal(context.request.raw, true);
+  assert.equal(empty.children[1].disabled, false);
+  const filled = vm.runInContext('logoCell({id: 1, name: "Team <A>", logo: "/api/teams/1/logo?v=first"})', context);
+  assert.equal(filled.children[1].src, "/api/teams/1/logo?v=first");
+  assert.equal(filled.children[1].alt, "Logo von Team <A>");
+  assert.equal(filled.children[2].textContent, "LOGO ERSETZEN");
+  assert.equal(filled.children[3].textContent, "LOGO ENTFERNEN");
 });

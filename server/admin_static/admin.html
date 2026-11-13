@@ -49,10 +49,11 @@
         <select id="team-character-input" aria-label="Figur für das neue Team"></select>
         <button class="btn btn-go" type="submit">TEAM HINZUFÜGEN</button>
       </form>
+      <p>Team-Logos: PNG, JPEG oder WebP, höchstens 5 MB pro Bild.</p>
       <p class="warn" id="error" role="alert"></p>
       <table class="teams-table">
         <thead>
-          <tr><th>SPIELT</th><th>TEAM</th><th>FIGUR</th><th>ONLINE</th><th>PROMPT</th><th>KI</th><th>AKTIONEN</th></tr>
+          <tr><th>SPIELT</th><th>TEAM</th><th>LOGO</th><th>FIGUR</th><th>ONLINE</th><th>PROMPT</th><th>KI</th><th>AKTIONEN</th></tr>
         </thead>
         <tbody id="teams"></tbody>
       </table>
@@ -122,7 +123,7 @@
       </div>
       <div class="llm-results" id="llm-results" aria-live="polite"></div>
       <h3>ACHTUNG</h3>
-      <p>Löscht Prompts, Bots, Chats und Kämpfe und setzt Punkte auf null. Teams, Links und Einstellungen bleiben erhalten.</p>
+      <p>Löscht Prompts, Bots, Chats und Kämpfe und setzt Punkte auf null. Teams, Logos, Links und Einstellungen bleiben erhalten.</p>
       <button class="btn btn-stop" id="reset" type="button">EVENT ZURÜCKSETZEN</button>
     </details>
   </main>

@@ -396,6 +396,8 @@ body[data-tab=bot] .tab[data-tab=bot] { background: var(--cream); color: var(--i
   padding: 0 16px 40px;
 }
 .row { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.team-logo { width: 64px; height: 64px; object-fit: contain; }
+.teams-table .team-logo { display: block; margin-bottom: 8px; }
 .row input[type=text] { flex: 1; min-width: 180px; width: auto; }
 .row select { width: auto; }
 .match-controls { align-items: flex-end; }

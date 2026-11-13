@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS teams (
     character TEXT,
     points INTEGER NOT NULL DEFAULT 0 CHECK (points >= 0)
 );
+CREATE TABLE IF NOT EXISTS team_logos (
+    team_id INTEGER PRIMARY KEY REFERENCES teams(id) ON DELETE CASCADE,
+    content BLOB NOT NULL, media_type TEXT NOT NULL, revision TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS prompts (
     team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
     round INTEGER NOT NULL, text TEXT NOT NULL, updated_at REAL NOT NULL,
@@ -182,6 +186,24 @@ class Database:
 
     def delete_team(self, team_id: int) -> None:
         self.conn.execute("DELETE FROM teams WHERE id = ?", (team_id,))
+
+    def logo(self, team_id: int) -> dict | None:
+        return self._one("SELECT content, media_type FROM team_logos WHERE team_id = ?", team_id)
+
+    def logo_revision(self, team_id: int) -> str | None:
+        row = self._one("SELECT revision FROM team_logos WHERE team_id = ?", team_id)
+        return row["revision"] if row else None
+
+    def save_logo(self, team_id: int, content: bytes, media_type: str, revision: str) -> None:
+        self.conn.execute(
+            "INSERT INTO team_logos (team_id, content, media_type, revision) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(team_id) DO UPDATE SET content = excluded.content, "
+            "media_type = excluded.media_type, revision = excluded.revision",
+            (team_id, content, media_type, revision),
+        )
+
+    def delete_logo(self, team_id: int) -> None:
+        self.conn.execute("DELETE FROM team_logos WHERE team_id = ?", (team_id,))
 
     # Prompts
 

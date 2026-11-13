@@ -791,6 +791,25 @@ class StageTests(EventCase):
         with self.assertRaises(EventError):
             await self.event.start_match(self.both, "MUTE_CITY")
 
+    async def test_a_demo_starts_before_any_round_without_prompts_code_or_azure(self):
+        self.docker.bots.clear()
+        self.event.client = None
+        self.db.update_settings({"azure_base_url": "", "azure_api_key": ""})
+        for team_id in self.both:
+            self.assertEqual(self.db.prompt(team_id, 0), "")
+        with patch.object(self.event, "_ready_for_match", side_effect=AssertionError("Demo must not prepare bots")):
+            await self.event.start_match(self.both, demo=True)
+            await self.finish_background()
+        command = self.event.match_runner.commands[-1]
+        self.assertEqual(command[2:4], ["FOX", "MARTH"])
+        self.assertIn("--no-record", command)
+        self.assertEqual(self.docker.bots, {})
+        self.assertEqual(self.docker.restarted, [])
+        self.assertEqual(self.client.responses.requests, [])
+        self.assertEqual(self.db.matches(), [])
+        self.assertEqual(self.db.event()["phase"], "setup")
+        self.assertEqual(self.db.event()["round"], 0)
+
     async def test_a_demo_has_no_bots_and_leaves_no_record(self):
         await self.play_round(stage="DREAMLAND")
         self.event.match_runner.gate = asyncio.Event()

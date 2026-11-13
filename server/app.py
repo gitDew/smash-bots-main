@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -17,6 +18,7 @@ from server.containers import DockerError
 from server.event import MAX_FIGHT_SECONDS, MAX_PROMPT_SECONDS, MIN_PROMPT_SECONDS, Event, EventError
 from server.llm import azure_client
 from server.llm_check import run_checks
+from server.logos import MAX_LOGO_BYTES, logo_media_type
 from server.replays import replay_path
 from server.stages import SVGS
 
@@ -95,6 +97,14 @@ def create_team_app(event: Event) -> FastAPI:
         if event.db.team_by_token(token) is None:
             return HTMLResponse(NOT_FOUND_PAGE, status_code=404)
         return FileResponse(HERE / "static" / "team.html")
+
+    @app.get("/t/{token}/logo")
+    async def team_logo(token: str) -> Response:
+        team = event.db.team_by_token(token)
+        logo = event.db.logo(team["id"]) if team else None
+        if logo is None:
+            raise HTTPException(status_code=404)
+        return Response(logo["content"], media_type=logo["media_type"])
 
     @app.get("/c/{token}", response_model=None)
     async def chat_page(token: str):
@@ -286,6 +296,41 @@ def create_admin_app(event: Event, *, port: int) -> FastAPI:
     @app.put("/api/teams/{team_id}/character")
     async def set_character(team_id: int, body: CharacterBody) -> dict:
         await event.set_character(team_id, body.character)
+        return {"ok": True}
+
+    @app.get("/api/teams/{team_id}/logo")
+    async def team_logo(team_id: int) -> Response:
+        logo = event.db.logo(team_id)
+        if logo is None:
+            raise HTTPException(status_code=404)
+        return Response(logo["content"], media_type=logo["media_type"])
+
+    @app.put("/api/teams/{team_id}/logo")
+    async def upload_logo(team_id: int, request: Request) -> dict:
+        if event.db.team(team_id) is None:
+            raise HTTPException(status_code=404)
+        content = bytearray()
+        async for chunk in request.stream():
+            if len(content) + len(chunk) > MAX_LOGO_BYTES:
+                raise HTTPException(status_code=413, detail="Das Logo darf höchstens 5 MB gross sein.")
+            content.extend(chunk)
+        image = bytes(content)
+        media_type = logo_media_type(image)
+        if media_type is None:
+            raise HTTPException(status_code=415, detail="Bitte ein Logo als PNG, JPEG oder WebP hochladen.")
+        # The team may have been deleted while the upload was being received.
+        if event.db.team(team_id) is None:
+            raise HTTPException(status_code=404)
+        event.db.save_logo(team_id, image, media_type, hashlib.sha256(image).hexdigest())
+        await event.broadcast()
+        return {"ok": True}
+
+    @app.delete("/api/teams/{team_id}/logo")
+    async def delete_logo(team_id: int) -> dict:
+        if event.db.team(team_id) is None:
+            raise HTTPException(status_code=404)
+        event.db.delete_logo(team_id)
+        await event.broadcast()
         return {"ok": True}
 
     @app.delete("/api/teams/{team_id}")

@@ -96,6 +96,11 @@ function renderState(s) {
   shownRound = s.round;
   state = s;
   $("team-name").textContent = s.team.name;
+  const logo = $("team-logo");
+  logo.hidden = !s.team.logo;
+  logo.alt = `Logo von ${s.team.name}`;
+  if (s.team.logo && logo.getAttribute("src") !== s.team.logo) logo.src = s.team.logo;
+  if (!s.team.logo && logo.src) logo.removeAttribute("src");
   $("character-line").textContent = `Du kämpfst als ${s.team.character}. Die Spielleitung wählt die Figuren aus. Das kannst du nicht ändern.`;
   $("character-line").hidden = !s.team.character;
 

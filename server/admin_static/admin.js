@@ -26,13 +26,13 @@ function el(tag, props = {}, ...children) {
   return node;
 }
 
-async function api(method, path, body) {
+async function api(method, path, body, raw = false) {
   $("error").textContent = "";
   try {
     const response = await fetch(path, {
       method,
-      headers: { "Content-Type": "application/json", "X-Smash-Admin": "1" },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: { "Content-Type": raw ? "application/octet-stream" : "application/json", "X-Smash-Admin": "1" },
+      body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
@@ -132,6 +132,37 @@ function showCharacterDialog(team) {
   $("character-dialog").showModal();
 }
 
+function logoCell(team) {
+  const input = el("input", {
+    type: "file", accept: "image/png,image/jpeg,image/webp", hidden: true,
+    ariaLabel: `Logo für ${team.name} hochladen`,
+  });
+  const upload = button(team.logo ? "LOGO ERSETZEN" : "LOGO HOCHLADEN", "", () => input.click());
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      $("error").textContent = "Das Logo darf höchstens 5 MB gross sein.";
+      window.scrollTo({ top: 0 });
+      input.value = "";
+      return;
+    }
+    upload.disabled = true;
+    upload.textContent = "WIRD HOCHGELADEN...";
+    await api("PUT", `/api/teams/${team.id}/logo`, file, true);
+    upload.disabled = false;
+    upload.textContent = team.logo ? "LOGO ERSETZEN" : "LOGO HOCHLADEN";
+    input.value = "";
+  };
+  const cell = el("td", {}, input);
+  if (team.logo) cell.append(el("img", { className: "team-logo", src: team.logo, alt: `Logo von ${team.name}` }));
+  cell.append(upload);
+  if (team.logo) cell.append(button("LOGO ENTFERNEN", "", () => {
+    if (window.confirm(`Logo von ${team.name} entfernen?`)) api("DELETE", `/api/teams/${team.id}/logo`);
+  }));
+  return cell;
+}
+
 function teamRow(team, phase) {
   const agent = team.agent;
   const agentCell = el("td");
@@ -166,6 +197,7 @@ function teamRow(team, phase) {
   return el("tr", {},
     el("td", {}, pick),
     el("td", { textContent: team.name }),
+    logoCell(team),
     el("td", {}, button(
       team.character ? state.characters[team.character] : "AUSWÄHLEN",
       team.character ? "" : "btn-warn",

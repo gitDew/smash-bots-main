@@ -487,10 +487,12 @@ class Event:
         run = self.db.latest_run(team["id"])
         working = run is not None and run["status"] in ("queued", "running")
         version = self.db.latest_version(team["id"])
+        logo_revision = self.db.logo_revision(team["id"])
         return {
             "type": "state",
             "team": {"name": team["name"], "character": CHARACTERS.get(team["character"]),
-                     "points": self._require_team(team["id"])["points"]},
+                     "points": self._require_team(team["id"])["points"],
+                     "logo": f"/t/{team['token']}/logo?v={logo_revision}" if logo_revision else None},
             "phase": event["phase"],
             "round": event["round"],
             "remaining": self._remaining(event),
@@ -531,9 +533,11 @@ class Event:
             names[team["id"]] = team["name"]
             run = self.db.run(team["id"], event["round"])
             version = self.db.latest_version(team["id"])
+            logo_revision = self.db.logo_revision(team["id"])
             teams.append({
                 "id": team["id"], "name": team["name"], "character": team["character"],
                 "points": team["points"],
+                "logo": f"/api/teams/{team['id']}/logo?v={logo_revision}" if logo_revision else None,
                 "link": self.team_link(team, settings),
                 "prompt": self.db.prompt(team["id"], event["round"]),
                 "online": len(self.hub.teams[team["id"]]),

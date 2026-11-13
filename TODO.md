@@ -39,6 +39,12 @@
    writer their team's QR code.
 6. Show **Helper chat QR** on a screen so that every kid can scan it.
 
+Each team generates its own logo. Upload it in that team's **Logo** column in
+the admin panel (PNG, JPEG or WebP, up to 5 MB). It appears on the team's page
+and is saved in `data/event.sqlite3`, together with the team. You can replace
+or remove it at any time. Logos survive restarts and **Reset event**; deleting
+a team also deletes its logo.
+
 ## Before round 1
 
 - Explain the game: under **Next round**, pick round 1's stage, tick the teams
