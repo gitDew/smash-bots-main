@@ -1,111 +1,75 @@
-# TODO
+# Running the event
 
-## 1. Create the repositories
+## Before the event
 
-- [ ] Keep the current repository as the main arena repository.
-- [ ] Create separate Team A, B, C, and D GitHub repositories, each containing
-      that team's `bot.py`.
-- [ ] Keep the team repositories separate from the main repository.
-- [ ] Keep the team repositories limited to the team's bot file.
-
-## 2. Configure GitHub access
-
-- [ ] Create a separate fine-grained GitHub token for each of Teams A–D.
-- [ ] Give each token access only to its team's repository, with only the
-      permissions needed to clone and push.
-- [ ] Do not put the main repository credentials on the team laptops.
-- [ ] Set an expiration date for the tokens.
-- [ ] Revoke the tokens after the event.
-
-## 3. Set up the master laptop
-
-- [ ] Create a directory containing the arena and four sibling team repositories:
-
-  ```text
-  smash-bots-event/
-  ├── arena/
-  ├── team-a-bot/
-  ├── team-b-bot/
-  ├── team-c-bot/
-  └── team-d-bot/
-  ```
-
-- [ ] Clone the arena and each team's repository into those directories.
-- [ ] Use the runner arguments to run two to four sibling bot files, for example:
+- [ ] Install everything on the main machine:
 
   ```sh
-  python3 arena/runner.py \
-    --p1 team-a-bot/bot.py \
-    --p2 team-b-bot/bot.py \
-    --p3 team-c-bot/bot.py \
-    --p4 team-d-bot/bot.py
+  python3 -m venv .venv
+  source .venv/bin/activate
+  python3 -m pip install -r requirements.txt
+  brew install ffmpeg
+  ./install_dolphin.sh
+  docker build -t smash-bots-sandbox -f sandbox/Dockerfile .
   ```
 
-- [ ] Do not use nested repositories or submodules.
+- [ ] Put the Melee ISO at `smash_bros_melee.iso`, or set its path in the admin
+      settings.
+- [ ] Enter the **Azure base URL**, **API key** and **model name** in the admin
+      settings, then press **Test connection**. It tries plain answers,
+      streaming, tool calls, reasoning and the safety filter.
 
-## 4. Build the Docker image
+- [ ] Do a full dry run, including a real match on the projector, then press
+      **Reset event** in the admin page.
 
-- [ ] Create a Docker build context for the team agent.
-- [ ] Add a `Dockerfile`.
-- [ ] Install Pi.
-- [ ] Install Git.
-- [ ] Install the dependencies needed by the Pi extension and bot repository.
-- [ ] Add the custom Pi extension.
-- [ ] Add `AGENTS.md`.
-- [ ] Add the libmelee and other reference documentation under `docs/`.
-- [ ] Add the fixed startup and submit scripts.
-- [ ] Do not include GitHub tokens or LLM API tokens in the image.
-- [ ] Configure the image to start Pi in the container terminal.
-- [ ] Build and test the image locally.
+## On the day
 
-## 5. Create the team launch configuration
+1. Start the server: `python3 -m server`
+2. Open the admin page on the main machine: <http://localhost:8001>
+3. Start the tunnel, which exposes only the team site:
 
-- [ ] Use one generic Docker image for all four teams.
-- [ ] Create one environment file per team containing its ID, repository URL,
-      branch, GitHub token, and LLM provider API token.
-- [ ] Do not commit the environment files.
-- [ ] Create launchers for all four teams on Windows and Linux.
-- [ ] Have each launcher start the image with its environment file.
-- [ ] Use ephemeral container storage initially.
-- [ ] Have the container clone the configured team repository at startup.
+   ```sh
+   cloudflared tunnel --url http://localhost:8000
+   ```
 
-## 6. Implement the restricted Pi extension
+4. Paste the tunnel's URL into **Public URL** in the admin settings. A quick
+   tunnel's URL changes whenever cloudflared restarts; after that, paste the new
+   URL and show the QR codes again.
+5. Add the teams, giving each one a different character. Give each team's prompt
+   writer their team's QR code.
+6. Show **Helper chat QR** on a screen so that every kid can scan it.
 
-- [ ] Load only the admin-installed extension from the image.
-- [ ] Disable Pi's general-purpose tools that are not needed.
-- [ ] Do not expose `bash`, arbitrary shell commands, or general Git tools to
-  the LLM.
-- [ ] Add `save_bot()` that writes only the configured team's `bot.py`.
-- [ ] Do not allow `save_bot()` to receive an arbitrary file path.
-- [ ] Add `submit_bot()` with no repository, branch, path, or command arguments.
-- [ ] Make `submit_bot()` run only the predefined Git commit and push workflow.
-- [ ] Return only the submission result and commit hash from `submit_bot()`.
-- [ ] Do not expose web-fetch/search tools or related skills.
-- [ ] Keep context loading enabled for the image-provided `AGENTS.md`.
-- [ ] Provide a read capability for the files under `docs/` if the LLM needs to
-  inspect the reference documentation.
+Each team generates its own logo. Upload it in that team's **Logo** column in
+the admin panel (PNG, JPEG or WebP, up to 5 MB). It appears on the team's page
+and is saved in `data/event.sqlite3`, together with the team. You can replace
+or remove it at any time. Logos survive restarts and **Reset event**; deleting
+a team also deletes its logo.
 
-## 7. Implement team submission
+## Before round 1
 
-- [ ] Make the submit workflow read only the team's `bot.py`.
-- [ ] Stage only `bot.py`; do not use `git add -A`.
-- [ ] Commit with a generated team-specific message.
-- [ ] Push only to the configured team repository and branch.
-- [ ] Keep the GitHub token available only at runtime.
-- [ ] Test each team's submission with its own token.
+- Explain the game: under **Next round**, pick round 1's stage, tick the teams
+  and press **Demo: nobody moves**. Every character stands still because nobody
+  has told their bot what to do yet. Press **Stop match** when you are done.
 
-## 8. Implement the master pull-and-launch script
+## Each round
 
-- [ ] Pull the main repository.
-- [ ] Pull each team's repository.
-- [ ] Run `runner.py` with two to four selected bot paths.
-- [ ] Add the Dolphin/ISO arguments needed on the master laptop.
+1. Under **Next round**, choose the prompt time in minutes and the stage, then
+   press **Open next round**. **Show stage** puts the map on screen; the kids
+   also see it on their phones. From round 2 on, each prompt writer is asked
+   whether to keep improving their bot or to start clean.
+2. Teams write their prompts. Use **+1 minute** or **Close round now** if needed.
+3. When the time is up, the agents code. **Agents live** in the admin page shows
+   every step in detail, and each team page shows a simple version.
+4. Tick 2 to 4 teams, set the maximum fight time in minutes next to **Start
+   match** (default: 5 minutes), and press it. It is played on the round's
+   stage and lasts until only one player is left or the selected fight time limit
+   is reached; with **Lives per player** at
+   1, a player is out after their first knockout. **Stop match** ends a match
+   early.
+5. Award points according to your round's rules using **+1 point** in the admin
+   **Points** table; **−1 point** corrects mistakes. Matches never award points
+   automatically. Teams see only their own total, not the full table. Points
+   survive server restarts; **Reset event** sets them back to zero.
 
-## 9. Test the complete workflow
-
-- [ ] Build the Docker image.
-- [ ] Start each team container and confirm Pi can use the reference docs and
-      write and submit only that team's `bot.py`.
-- [ ] Confirm Pi cannot use the disabled tools.
-- [ ] Pull all four repositories on the master laptop.
-- [ ] Test two-, three-, and four-player matches using submitted bot files.
+If an agent fails, the team's previous bot still fights. **Retry agent** runs it
+again, and **Details** lets you roll a team back to any earlier version.

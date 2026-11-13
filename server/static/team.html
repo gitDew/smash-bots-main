@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Smash Bots</title>
+  <link rel="stylesheet" href="/static/retro.css">
+</head>
+<body data-tab="prompt">
+  <header class="top">
+    <div class="logo">
+      <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">
+        <rect x="7" y="0" width="2" height="2" fill="#c4a25a"/>
+        <rect x="3" y="2" width="10" height="8" fill="#e6dfcd"/>
+        <rect x="5" y="4" width="2" height="2" fill="#26242b"/>
+        <rect x="9" y="4" width="2" height="2" fill="#26242b"/>
+        <rect x="5" y="7" width="6" height="1" fill="#a5503f"/>
+        <rect x="1" y="4" width="2" height="4" fill="#6b6977"/>
+        <rect x="13" y="4" width="2" height="4" fill="#6b6977"/>
+        <rect x="5" y="10" width="6" height="4" fill="#5c7a99"/>
+        <rect x="4" y="14" width="3" height="2" fill="#6b6977"/>
+        <rect x="9" y="14" width="3" height="2" fill="#6b6977"/>
+      </svg>
+      <div>SMASH<span>BOTS</span></div>
+    </div>
+    <div class="team-identity">
+      <img class="team-logo" id="team-logo" alt="" hidden>
+      <span class="team-score" id="team-points" aria-live="polite">score:0</span>
+      <span class="team-name" id="team-name"></span>
+    </div>
+  </header>
+
+  <div class="banner" id="connection" hidden>VERBINDUNG WIRD WIEDERHERGESTELLT...</div>
+
+  <section class="status" id="status" data-mood="wait" aria-live="polite">
+    <div class="status-label">
+      <svg id="lock-icon" viewBox="0 0 10 12" shape-rendering="crispEdges" hidden aria-hidden="true">
+        <rect x="2" y="0" width="6" height="2" fill="#e6dfcd"/>
+        <rect x="1" y="1" width="2" height="5" fill="#e6dfcd"/>
+        <rect x="7" y="1" width="2" height="5" fill="#e6dfcd"/>
+        <rect x="0" y="5" width="10" height="7" fill="#e6dfcd"/>
+        <rect x="4" y="7" width="2" height="3" fill="#7d3b2f"/>
+      </svg>
+      <span id="status-label">LÄDT</span>
+    </div>
+    <div class="status-title" id="status-title">...</div>
+    <div class="status-clock" id="status-clock" hidden></div>
+    <div class="status-text" id="status-text"></div>
+  </section>
+
+  <nav class="tabs" aria-label="Bereiche">
+    <button class="tab" data-tab="prompt" type="button">PROMPT</button>
+    <button class="tab" data-tab="bot" type="button">MEIN BOT</button>
+  </nav>
+
+  <main class="panels">
+    <section class="panel" id="panel-prompt">
+      <h2>DEIN PROMPT</h2>
+      <p>Beschreibe, wie dein Bot kämpfen soll. Die KI macht aus deinen Worten Code.</p>
+      <div class="stage-card" id="stage-card" hidden>
+        <b id="stage-name"></b>
+        <img class="stage-map" id="stage-map" alt="">
+        <p id="stage-about"></p>
+      </div>
+      <p class="chat-note" id="character-line" hidden></p>
+      <div class="mode-line" id="mode-line" hidden>
+        <span id="mode-text"></span>
+        <button class="btn btn-small" id="mode-change" type="button">ÄNDERN</button>
+      </div>
+      <div class="prompt-box">
+        <textarea id="prompt" aria-label="Dein Prompt" placeholder="Beispiel: Bleibe nah bei der Person mit dem meisten Schaden und kehre immer auf die Bühne zurück."></textarea>
+        <div class="locked-stamp" id="locked-stamp" hidden>GESPERRT</div>
+      </div>
+      <div class="prompt-foot">
+        <span id="save-state"></span>
+        <span id="char-count"></span>
+      </div>
+      <details class="help-sheet">
+        <summary>WAS KANN MEIN BOT SEHEN?</summary>
+        <div id="cheatsheet"></div>
+      </details>
+    </section>
+
+    <section class="panel" id="panel-bot">
+      <h2>DEIN BOT</h2>
+      <div class="agent-card" id="agent-card" data-status="none">
+        <strong id="agent-title">BEREIT</strong>
+        <span id="agent-text">Dein Start-Bot wartet auf deine erste Idee.</span>
+      </div>
+      <details class="activity" id="activity-box" hidden>
+        <summary>WAS DIE KI GEMACHT HAT</summary>
+        <ol class="activity-list" id="activity-list" aria-live="polite"></ol>
+      </details>
+      <div id="code-area" hidden>
+        <h3 id="code-title">DER CODE</h3>
+        <div class="code-view" tabindex="0" aria-label="Der Code deines Bots">
+          <pre class="code-lines" id="code-lines" aria-hidden="true"></pre>
+          <pre class="code-text"><code id="code-text"></code></pre>
+        </div>
+      </div>
+      <p id="code-wait" hidden>Dein Code erscheint hier, sobald die KI fertig ist.</p>
+    </section>
+
+  </main>
+
+  <dialog id="start-dialog" aria-labelledby="start-title">
+    <h2 id="start-title">NEUE RUNDE!</h2>
+    <p>Was soll mit deinem Bot passieren?</p>
+    <div class="choice-grid">
+      <button class="choice" id="choose-keep" type="button">
+        <b>WEITER VERBESSERN</b>
+        <span>Die KI verbessert den Bot, den du schon hast.</span>
+      </button>
+      <button class="choice choice-fresh" id="choose-fresh" type="button">
+        <b>NEU ANFANGEN</b>
+        <span>Lösche deinen bisherigen Code. Die KI beginnt wieder mit einem einfachen Start-Bot.</span>
+      </button>
+    </div>
+    <p class="choice-note">Du kannst dich bis zum Ende der Runde noch umentscheiden.</p>
+  </dialog>
+
+  <script src="/static/common.js"></script>
+  <script src="/static/team.js"></script>
+</body>
+</html>

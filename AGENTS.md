@@ -8,96 +8,77 @@ Dolphin/Slippi.
 
 Always use python3 on the CLI.
 
+## Event system
+
+`TODO.md` explains how to run the event. The parts are:
+
+- `server/` (`python3 -m server`): team site on port 8000, the only part exposed
+  through the tunnel, and admin on port 8001, reachable only from this machine.
+  Round rules are enforced in `server/event.py`.
+- Each team has a `/t/<uuid>` link for its one prompt writer. One separate
+  `/c/<uuid>` link is the helper chat for any kid; it has no access to teams.
+- `server/agent.py`: the coding agent. Its loop runs on the host and calls Azure
+  OpenAI; every tool runs through `docker exec` in the team's container.
+- `server/chat.py`: the helper chat. It has no tools and returns only text.
+- `sandbox/`: the image for the per-team containers, which have no network. Bots
+  also run there during matches: the runner sends game state in and gets back
+  only validated input commands (`container_bot.py`). After changing anything
+  in `sandbox/`, rebuild the image; the server then replaces outdated team
+  containers by itself and keeps their bots.
+
+Team code must never be imported or run on the host during the event.
+
 ## Runner
 
-`runner.py` is the shared runner. It:
+`runner.py` is the match runner, started by the server for each match. It:
 
 - Starts Dolphin through libmelee.
 - Sets up the Melee menus and character select screens.
-- Creates one controller per player, for two to four players.
-- Calls each bot once per game frame.
+- Starts each bot in its team's container and creates one controller per player,
+  for two to four players.
+- Sends each game frame to the bots and applies their validated inputs.
 - Stops after the match.
 
-Team LLMs should **not modify `runner.py`**. Bot changes belong in the team's
-`bot.py` file. The macOS arena uses the project-local Slippi Mainline beta;
-install it with `./install_dolphin.sh`. It records Dolphin's own game frames.
+It takes each container and its character in player order, and the stage with
+`--stage`. A character without a container has no bot and stands still; the
+admin page's demo match uses only those. Matches are free-for-alls, not a
+two-versus-two team mode.
+
+```sh
+python3 runner.py smash-team-1=FOX smash-team-2=MARTH --stage BATTLEFIELD
+python3 runner.py FOX MARTH --stage BATTLEFIELD --no-record   # nobody moves
+```
+
+## Stages
+
+The host picks each round's prompt time and stage when opening it. The stages
+are listed in `server/stages.py`, which also draws the map the kids see on
+their phones from libmelee's own stage numbers.
+
+The macOS arena uses the project-local Slippi Mainline beta; install it with
+`./install_dolphin.sh`.
+
+## Replays
+
+The runner uses Dolphin's own frame dump to save a silent H.264 MP4 in
+`replays/` as `round_1.mp4`, `round_2.mp4`, and so on. It needs FFmpeg and free
+disk space, and existing recordings are never overwritten. If saving fails, the
+original dumps stay in `replays/.round_N.dolphin/` with details in
+`replays/round_N.log`.
 
 ## Team bots
 
-Each team has its own bot file:
-
-- `teams/team_a/bot.py` — default player 1
-- `teams/team_b/bot.py` — default player 2
-- `teams/team_c/bot.py` — default player 3
-- `teams/team_d/bot.py` — default player 4
-
-The runner uses all four players by default. Use `--players 2` or `--players 3`
-for a smaller match. All four `--p1`–`--p4` arguments accept bot paths, so a
-team is not permanently tied to one port. For example:
-
-```sh
-python3 runner.py --players 3 --p3 teams/team_c/bot.py
-```
-
-Matches are free-for-alls, not a two-versus-two team mode.
-
-A bot must define this interface:
-
-```python
-class Bot:
-    def __init__(self, port: int):
-        self.port = port
-
-    def get_character(self) -> melee.Character:
-        return melee.Character.FOX
-
-    def act(self, gamestate, controller) -> None:
-        pass
-```
-
-`runner.py` calls `get_character()` once before starting the match. It must
-return a selectable `melee.Character` enum value. To switch characters, change
-the returned value in the team's `bot.py`, for example:
-
-```python
-def get_character(self) -> melee.Character:
-    return melee.Character.FALCO
-```
-
-Sheik is supported even though it shares Zelda's character-select slot. `NANA`,
-wireframe characters, Giga Bowser, Sandbag, and `UNKNOWN_CHARACTER` are not
-independently selectable and will be rejected by the runner.
-
-`runner.py` creates one `Bot` object per team and calls `act()` once per
-in-game frame while that player's state is present. The bot should read the
-current game state and send inputs through the provided controller. It should
-only control its own player.
-
-The runner resets all controllers before each frame's calls to `act()`, so the
-bot should set the buttons and stick positions it wants for that frame. It should
-not create a console or controller, call `console.step()`, flush inputs, or
-handle menus. Character selection is also handled by the runner; bots only
-provide `get_character()`.
+Each team's bot is the single file `/workspace/bot.py` in its container. New
+teams start from `server/starter_bot.py`. The host assigns each team a different
+character in the admin page; bot code cannot choose one. The bot rules are in
+`server/chat_context/rules.md`; the coding agent and the helper chat both read
+that file, so change the rules there.
 
 ## libmelee
 
 [libmelee](https://github.com/vladfi1/libmelee/) is the Python API connecting
-these bots to Slippi Dolphin. It provides:
-
-- `gamestate.players[port]` for player state. Use `self.port` for your own
-  player; there can be one, two, or three opponents, and eliminated players
-  may be absent from the current frame.
-- State such as position, percent, action, `on_ground`, and `jumps_left`.
-- Controller methods such as `press_button()`, `release_button()`, and
-  `tilt_analog()`.
-- Enums such as `melee.Button.BUTTON_A`, `BUTTON_X`, and `BUTTON_MAIN`.
-
-Do not assume `gamestate.distance` represents all opponents in a multiplayer
-match; calculate distances from player positions when needed.
-
-The main documentation is at
-<https://libmelee.readthedocs.io/en/latest/>. An offline snapshot is checked
-into `docs/libmelee/`; start with [`docs/libmelee/README.md`](docs/libmelee/README.md)
-for the local Markdown and HTML API references.
+these bots to Slippi Dolphin. The main documentation is at
+<https://libmelee.readthedocs.io/en/latest/>. An offline Markdown snapshot of the
+pages this project uses is in `docs/libmelee/`.
 
 Keep bot code small, understandable, and offline. Do not add online play.

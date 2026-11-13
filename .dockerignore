@@ -1,0 +1,5 @@
+# Allowlist: the sandbox image must never receive the ISO, data, or secrets.
+*
+!sandbox/
+!docs/libmelee/*.md
+!server/chat_context/rules.md

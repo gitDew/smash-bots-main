@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Smash Bots Hilfe</title>
+  <link rel="stylesheet" href="/static/retro.css">
+</head>
+<body>
+  <header class="top">
+    <div class="logo"><div>SMASH<span>BOTS</span></div></div>
+    <div class="team-name">HILFE</div>
+  </header>
+
+  <div class="banner" id="connection" hidden>VERBINDUNG WIRD WIEDERHERGESTELLT...</div>
+
+  <main class="chat-page">
+    <section class="status" id="status" data-mood="wait" aria-live="polite">
+      <div class="status-label">
+        <svg id="lock-icon" viewBox="0 0 10 12" shape-rendering="crispEdges" hidden aria-hidden="true">
+          <rect x="2" y="0" width="6" height="2" fill="#e6dfcd"/>
+          <rect x="1" y="1" width="2" height="5" fill="#e6dfcd"/>
+          <rect x="7" y="1" width="2" height="5" fill="#e6dfcd"/>
+          <rect x="0" y="5" width="10" height="7" fill="#e6dfcd"/>
+          <rect x="4" y="7" width="2" height="3" fill="#7d3b2f"/>
+        </svg>
+        <span id="status-label">LÄDT</span>
+      </div>
+      <div class="status-title" id="status-title">...</div>
+      <div class="status-clock" id="status-clock" hidden></div>
+      <div class="status-text" id="status-text"></div>
+    </section>
+
+    <section class="panel" id="stage-card" hidden>
+      <div class="stage-card">
+        <b id="stage-name"></b>
+        <img class="stage-map" id="stage-map" alt="">
+        <p id="stage-about"></p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>FRAG DIE KI</h2>
+      <p class="chat-note">Frag alles darüber, was ein Bot sehen und tun kann. Nur du siehst deine Fragen. Hast du eine tolle Idee? Sag sie der Person in deinem Team, die euren Prompt schreibt!</p>
+      <div class="chat-log" id="chat-log" aria-live="polite"></div>
+      <form class="chat-form" id="chat-form">
+        <input type="text" id="chat-input" maxlength="500" autocomplete="off" aria-label="Deine Frage" placeholder="Können wir die anderen Spieler sehen?">
+        <button class="btn btn-go" id="chat-send" type="submit">FRAGEN</button>
+      </form>
+      <div class="chat-foot" id="chat-foot"></div>
+    </section>
+
+    <section class="panel">
+      <details class="help-sheet">
+        <summary>WAS KANN MEIN BOT SEHEN?</summary>
+        <div id="cheatsheet"></div>
+      </details>
+    </section>
+  </main>
+
+  <script src="/static/common.js"></script>
+  <script src="/static/chat.js"></script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+-r sandbox/requirements.txt
+fastapi>=0.115
+uvicorn[standard]>=0.30
+openai>=1.60
+segno>=1.6

@@ -1,0 +1,4 @@
+# Keep these identical on the host and in the sandbox image: game state is
+# pickled by the runner and unpickled inside each team's container.
+melee @ git+https://github.com/vladfi1/libmelee@bce21f09984b286e6d36bfd2939e4cd4691f94c2
+numpy==2.4.6
